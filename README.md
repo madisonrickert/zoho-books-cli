@@ -128,6 +128,36 @@ Exit codes:
 | `5`  | Rate-limited (429) |
 | `6`  | Network / transport |
 
+## Agent skill
+
+The repo ships a Claude Code skill at [`skills/zoho-books/SKILL.md`](skills/zoho-books/SKILL.md). It teaches an agent when to reach for this CLI (vs. the Zoho Books MCP), how to check preconditions, how to parse the JSON contract, and how to handle per-error-code behaviors.
+
+### Install the skill
+
+Symlink (follows repo updates — recommended if you cloned for dev):
+
+```bash
+mkdir -p ~/.claude/skills
+ln -s "$(pwd)/skills/zoho-books" ~/.claude/skills/zoho-books
+```
+
+Or copy once (no auto-updates):
+
+```bash
+mkdir -p ~/.claude/skills
+cp -r skills/zoho-books ~/.claude/skills/
+```
+
+Or pull straight from GitHub without cloning:
+
+```bash
+mkdir -p ~/.claude/skills/zoho-books
+curl -fsSL https://raw.githubusercontent.com/madisonrickert/zoho-books-cli/main/skills/zoho-books/SKILL.md \
+  -o ~/.claude/skills/zoho-books/SKILL.md
+```
+
+Restart Claude Code (or run `/skills` to verify) and the `zoho-books` skill will activate automatically when you ask an agent to attach a file to a Zoho Books record.
+
 ## Out of scope for v1
 
 Listing/getting expenses, invoices, contacts, customer payments, bank transactions, etc. — all already well-supported by the [Zoho Books MCP](https://www.zoho.com/books/api/). This CLI concentrates on the gap MCP can't fill. Use `zb raw` for anything not wrapped.
