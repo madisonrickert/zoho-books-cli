@@ -2,6 +2,17 @@
 
 ## Dev setup
 
+Using [uv](https://docs.astral.sh/uv/) (recommended):
+
+```bash
+uv venv
+source .venv/bin/activate
+uv pip install -e ".[dev]"
+pre-commit install
+```
+
+Or with stdlib + pip:
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate

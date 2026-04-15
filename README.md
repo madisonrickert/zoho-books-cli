@@ -6,17 +6,29 @@ An agent-first command-line interface for [Zoho Books](https://www.zoho.com/book
 
 ## Install
 
-```bash
-pipx install zoho-books-cli
-```
-
-Or from source:
+Using [uv](https://docs.astral.sh/uv/) (recommended):
 
 ```bash
+# Straight from GitHub
+uv tool install git+https://github.com/madisonrickert/zoho-books-cli
+
+# Or from a local checkout
 git clone https://github.com/madisonrickert/zoho-books-cli
 cd zoho-books-cli
+uv tool install .
+```
+
+Upgrade with `uv tool upgrade zoho-books-cli`; remove with `uv tool uninstall zoho-books-cli`.
+
+<details>
+<summary>Alternative: pipx</summary>
+
+```bash
+pipx install git+https://github.com/madisonrickert/zoho-books-cli
+# or editable from a clone:
 pipx install -e .
 ```
+</details>
 
 ## Authentication
 
