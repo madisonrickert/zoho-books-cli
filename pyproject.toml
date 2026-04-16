@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "zoho-books-cli"
-version = "0.1.0"
+version = "0.2.0"
 description = "Agent-first CLI for Zoho Books, filling gaps the official MCP can't cover (notably binary file uploads)."
 readme = "README.md"
 requires-python = ">=3.11"
