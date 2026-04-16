@@ -1,6 +1,6 @@
 # zoho-books-cli
 
-An agent-first command-line interface for [Zoho Books](https://www.zoho.com/books/). Built to fill feature gaps in the [Zoho Books MCP server](https://www.zoho.com/books/api/) — most notably, **uploading local receipt files and attachments to expenses, bills, and invoices**, which MCP's JSON-RPC interface cannot do cleanly.
+An agent-first command-line interface for [Zoho Books](https://www.zoho.com/books/). Provides full coverage of `/expenses`, `/recurringexpenses`, and `/banktransactions` plus the receipt and attachment binary uploads that the [Zoho Books MCP server](https://www.zoho.com/books/api/) can't do over JSON-RPC. IDs are preserved as strings end-to-end so 19-digit Zoho IDs don't lose precision in JavaScript consumers.
 
 > **Primary consumer:** AI agents. Default output is JSON; errors are structured; exit codes are meaningful. See [`AGENTS.md`](AGENTS.md) for the full contract.
 
@@ -86,10 +86,38 @@ zb bills attachments add 9820000001234001 vendor-contract.pdf
 zb invoices attachments add 9820000009999001 signed-po.pdf
 ```
 
+### List expenses and bank transactions
+
+```bash
+zb expenses list --query status=unfiled --page 1 --per-page 50
+zb bank-transactions list --query account_id=9820000005670010000 --per-page 25
+```
+
+Every list command is single-page and exposes Zoho's `page_context`. Loop on `page_context.has_more_page` if you need more rows.
+
+### Create, update, delete
+
+Thin wrappers — pass the body as inline JSON or `@file.json`:
+
+```bash
+zb expenses create --body '{"account_id":"9820000005670010000","date":"2026-04-15","amount":42.50}'
+zb expenses update EXP1 --body @updates.json
+zb expenses delete EXP1
+```
+
+**IDs must be strings in `--body` JSON** — Zoho IDs exceed JavaScript's safe-integer limit and will lose precision if serialized as numbers. See [`AGENTS.md`](AGENTS.md#ids-must-be-strings).
+
+### Categorize a bank transaction
+
+```bash
+zb bank-transactions categorize expense <txn_id> --body '{"account_id":"..."}'
+zb bank-transactions match <txn_id> --body '{"transactions_to_be_matched":[{"transaction_id":"..."}]}'
+```
+
 ### Escape hatch — any endpoint
 
 ```bash
-zb raw GET /expenses --query "status=unfiled"
+zb raw GET /invoices --query "status=unpaid"
 zb raw POST /contacts --body '{"contact_name":"Acme"}'
 ```
 
@@ -100,10 +128,27 @@ zb --list-commands         # machine-readable command tree (JSON)
 
 zb auth login|status|refresh|logout
 zb org list|use|current
+
+zb expenses list|get|create|update|update-by-custom-field|delete
 zb expenses receipt upload|delete
+zb expenses receipt get <expense_id> --output <path>
 zb expenses attachments add|delete
+zb expenses comments list
+
+zb recurring-expenses list|get|create|update|delete|stop|resume|children|history
+
+zb bank-transactions list|get|create|update|delete
+zb bank-transactions match|unmatch|matches|exclude|restore|uncategorize
+zb bank-transactions categorize generic|expense|vendor-payment|customer-payment
+zb bank-transactions categorize credit-note-refund|vendor-credit-refund
+zb bank-transactions categorize payment-refund|vendor-payment-refund
+zb bank-transactions statements import --body '{...}'
+zb bank-transactions statements last-imported <account_id>
+zb bank-transactions statements delete <account_id> <statement_id>
+
 zb bills attachments add|delete
 zb invoices attachments add|delete
+
 zb raw <METHOD> <path>
 ```
 
@@ -158,9 +203,9 @@ curl -fsSL https://raw.githubusercontent.com/madisonrickert/zoho-books-cli/main/
 
 Restart Claude Code (or run `/skills` to verify) and the `zoho-books` skill will activate automatically when you ask an agent to attach a file to a Zoho Books record.
 
-## Out of scope for v1
+## Not yet wrapped
 
-Listing/getting expenses, invoices, contacts, customer payments, bank transactions, etc. — all already well-supported by the [Zoho Books MCP](https://www.zoho.com/books/api/). This CLI concentrates on the gap MCP can't fill. Use `zb raw` for anything not wrapped.
+`/bankaccounts/rules`, `/invoices` CRUD, `/bills` CRUD, `/contacts`, `/customerpayments`, and other surfaces still need `zb raw`. Coming in follow-up releases; contributions welcome.
 
 ## Security
 

@@ -1,11 +1,11 @@
 ---
 name: zoho-books
-description: Use when the user wants to upload a local receipt or attachment file to a Zoho Books expense, bill, or invoice — a gap the Zoho Books MCP server cannot fill because it can't pass local file bytes over JSON-RPC. Triggers on phrases like "attach this receipt", "upload a receipt to the expense", "add an attachment to that bill/invoice in Zoho", or any request that combines a Zoho Books record ID with a local file path. Also use for Zoho Books API operations not wrapped by the MCP server (via `zb raw`).
+description: Use for any Zoho Books operation — listing/creating/updating/deleting expenses, recurring expenses, or bank transactions; categorizing/matching bank transactions; uploading local receipts or attachments. Triggers on phrases like "create an expense in Zoho", "categorize this bank transaction", "list uncategorized transactions", "attach this receipt", or any mention of a Zoho Books record ID combined with a CRUD or file operation. Prefer this CLI over the Zoho Books MCP when the user will consume IDs in JavaScript (MCP loses precision on 19-digit IDs) or when uploading local files.
 ---
 
 # Zoho Books CLI (`zb`)
 
-A thin command-line wrapper over the Zoho Books REST API. Built for agents: outputs JSON on stdout, structured errors on stderr, meaningful exit codes. Fills gaps in the Zoho Books MCP server — primarily, **uploading local binary files**.
+A thin command-line wrapper over the Zoho Books REST API. Built for agents: outputs JSON on stdout, structured errors on stderr, meaningful exit codes. Preserves 19-digit IDs as strings end-to-end (MCP loses precision in JS runtimes) and handles local binary uploads (MCP can't).
 
 Repo: <https://github.com/madisonrickert/zoho-books-cli>
 
@@ -13,11 +13,25 @@ Repo: <https://github.com/madisonrickert/zoho-books-cli>
 
 | Task | Use |
 | ---- | --- |
-| Upload a local receipt / attachment file | **`zb` (this CLI)** |
-| List, get, create, update expenses / invoices / bills / contacts / bank txns | Zoho Books MCP tools |
-| An endpoint MCP doesn't wrap | `zb raw <METHOD> <path>` |
+| Upload a local receipt / attachment file | **`zb`** |
+| CRUD on expenses, recurring expenses, bank transactions | **`zb`** (IDs preserved as strings) or MCP |
+| Categorize, match, or exclude bank transactions | **`zb`** or MCP |
+| CRUD on invoices, bills, contacts, customer payments | Zoho Books MCP (not yet wrapped in `zb`) |
+| An endpoint neither wraps | `zb raw <METHOD> <path>` |
 
-If the user's request involves **a file path on disk being sent to Zoho**, reach for this CLI. Otherwise prefer MCP.
+**Prefer `zb` when** the user is in a JS/Node runtime and needs ID fields intact, or when the operation involves a local file.
+
+## IDs must be strings in --body JSON
+
+Zoho Books IDs are 19 digits. JavaScript's `Number` type starts losing precision at 2^53 − 1 (~16 digits). Whenever you construct `--body` JSON, quote IDs:
+
+```bash
+# Correct
+zb expenses create --body '{"account_id": "9820000005670010000", "amount": 42.50}'
+
+# Wrong — numeric ID will lose precision in any JS consumer of the response
+zb expenses create --body '{"account_id": 9820000005670010000, "amount": 42.50}'
+```
 
 ## Preconditions
 
@@ -35,24 +49,84 @@ If `org current` returns null, run `zb org list` and ask the user which organiza
 
 ## Core commands
 
+### Thin-wrapper convention
+
+Wrapped commands take one or both of:
+
+- `--query key=value` (repeatable) for URL params; `--page` and `--per-page` are first-class on lists.
+- `--body '<json>'` or `--body @path/to/file.json` for request bodies.
+
+No typed per-field flags. Build the JSON body from Zoho's API docs.
+
+### Expenses
+
 ```bash
-# Expense receipt (single image/PDF per expense; REPLACES any existing)
+zb expenses list [--query k=v ...] [--page N] [--per-page N]
+zb expenses get <expense_id>
+zb expenses create --body '{...}'
+zb expenses update <expense_id> --body '{...}'
+zb expenses update-by-custom-field --body '{...}'
+zb expenses delete <expense_id>
+zb expenses comments list <expense_id>
+
+# Receipt (single file per expense; REPLACES any existing)
 zb expenses receipt upload <expense_id> <file>
+zb expenses receipt get <expense_id> --output <path>    # downloads the PDF/image to disk
 zb expenses receipt delete <expense_id>
 
-# Expense attachments (multiple supplementary files; APPENDS)
+# Attachments (multiple supplementary files; APPENDS)
 zb expenses attachments add <expense_id> <file> [<file>...]
-zb expenses attachments delete <expense_id> <attachment_id>
+zb expenses attachments delete <expense_id>
+```
 
-# Bill attachments
+### Recurring expenses
+
+```bash
+zb recurring-expenses list [--query ...] [--page N] [--per-page N]
+zb recurring-expenses get|create|update|delete <id> ...
+zb recurring-expenses stop <id>         # POST /status/stop
+zb recurring-expenses resume <id>       # POST /status/resume
+zb recurring-expenses children <id>     # child expenses created by this recurrence
+zb recurring-expenses history <id>      # history / comments feed
+```
+
+### Bank transactions
+
+```bash
+zb bank-transactions list|get|create|update|delete ...
+zb bank-transactions match <id> --body '{"transactions_to_be_matched": [...]}'
+zb bank-transactions matches <id>      # list candidate matches
+zb bank-transactions unmatch <id>
+zb bank-transactions exclude <id>
+zb bank-transactions restore <id>
+zb bank-transactions uncategorize <id>
+
+# Categorize family — 8 target types
+zb bank-transactions categorize generic              <id> --body '{...}'
+zb bank-transactions categorize expense              <id> --body '{...}'
+zb bank-transactions categorize vendor-payment       <id> --body '{...}'
+zb bank-transactions categorize customer-payment     <id> --body '{...}'
+zb bank-transactions categorize credit-note-refund   <id> --body '{...}'
+zb bank-transactions categorize vendor-credit-refund <id> --body '{...}'
+zb bank-transactions categorize payment-refund       <id> --body '{...}'
+zb bank-transactions categorize vendor-payment-refund<id> --body '{...}'
+
+# Statement import (paths span /bankstatements and /bankaccounts; grouped for ergonomics)
+zb bank-transactions statements import --body '{...}'
+zb bank-transactions statements last-imported <account_id>
+zb bank-transactions statements delete <account_id> <statement_id>
+```
+
+### Bills and invoices (attachments only, for now)
+
+```bash
 zb bills attachments add <bill_id> <file> [<file>...]
-zb bills attachments delete <bill_id> <attachment_id>
-
-# Invoice attachments
 zb invoices attachments add <invoice_id> <file> [<file>...]
-zb invoices attachments delete <invoice_id> <attachment_id>
+```
 
-# Escape hatch for anything not wrapped
+### Escape hatch
+
+```bash
 zb raw <GET|POST|PUT|DELETE> <path> [--query k=v] [--body '<json>'|@file.json] [--file field=path]
 ```
 

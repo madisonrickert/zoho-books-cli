@@ -1,8 +1,9 @@
-"""`zb expenses ...` — receipt and attachment operations.
+"""`zb expenses ...` — full coverage of /expenses plus receipt and attachment uploads.
 
-These are the **headline features** of this CLI: uploading local binary files
-and tagging them to a specific expense. The MCP server can't pass local file
-bytes cleanly; this CLI can.
+The CRUD, list, and comments commands are thin wrappers: each takes `--body`
+(inline JSON or `@file.json`) and repeatable `--query key=value`. The receipt
+and attachments subtrees handle local binary uploads — the original MCP gap
+that motivated this CLI.
 """
 
 from __future__ import annotations
@@ -13,15 +14,129 @@ import typer
 
 from zoho_books_cli import _uploads, config, output
 from zoho_books_cli.client import ZohoBooksClient
+from zoho_books_cli.commands import _shared
 from zoho_books_cli.errors import ZohoCLIError
 
-app = typer.Typer(help="Expense receipt and attachment operations.", no_args_is_help=True)
+app = typer.Typer(help="Expense operations (CRUD + receipts + attachments).", no_args_is_help=True)
 receipt_app = typer.Typer(help="Single-image receipt per expense.", no_args_is_help=True)
 attachments_app = typer.Typer(
     help="Multiple supplementary attachments per expense.", no_args_is_help=True
 )
+comments_app = typer.Typer(help="Expense history and comments (read-only).", no_args_is_help=True)
 app.add_typer(receipt_app, name="receipt")
 app.add_typer(attachments_app, name="attachments")
+app.add_typer(comments_app, name="comments")
+
+
+@app.command("list")
+def list_expenses(
+    query: list[str] = typer.Option(
+        None, "--query", "-q", help="Query params as key=value. May be repeated."
+    ),
+    page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
+    per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
+):
+    """List expenses. Returns one page plus page_context."""
+    q = _shared.parse_query_pairs(query)
+    if page is not None:
+        q["page"] = str(page)
+    if per_page is not None:
+        q["per_page"] = str(per_page)
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.get("/expenses", query=q)
+    _shared.emit_list(resp, "expenses")
+
+
+@app.command("create")
+def create_expense(
+    body: str = typer.Option(
+        ...,
+        "--body",
+        "-b",
+        help="JSON body. Either a literal string or @path/to/file.json. IDs must be strings.",
+    ),
+):
+    """Create an expense. See Zoho Books API docs for the full field list."""
+    json_body = _shared.parse_body(body)
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.post("/expenses", json_body=json_body)
+    _shared.emit_object(resp)
+
+
+@app.command("get")
+def get_expense(
+    expense_id: str = typer.Argument(..., help="Zoho Books expense_id."),
+):
+    """Get a single expense by ID."""
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.get(f"/expenses/{expense_id}")
+    _shared.emit_object(resp)
+
+
+@app.command("update")
+def update_expense(
+    expense_id: str = typer.Argument(..., help="Zoho Books expense_id."),
+    body: str = typer.Option(..., "--body", "-b", help="JSON body. IDs must be strings."),
+):
+    """Update an expense by ID."""
+    json_body = _shared.parse_body(body)
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.put(f"/expenses/{expense_id}", json_body=json_body)
+    _shared.emit_object(resp)
+
+
+@app.command("update-by-custom-field")
+def update_expense_by_custom_field(
+    key: str = typer.Option(
+        ..., "--key", help="Custom-field API name (e.g. cf_external_id)."
+    ),
+    value: str = typer.Option(..., "--value", help="Custom-field value to match on."),
+    body: str = typer.Option(
+        ..., "--body", "-b", help="JSON body with the update fields. IDs must be strings."
+    ),
+    upsert: bool = typer.Option(
+        False, "--upsert", help="Create a new expense if no match is found."
+    ),
+):
+    """Update an expense by a custom field's unique value.
+
+    Identifier is sent via X-Unique-Identifier-Key / X-Unique-Identifier-Value headers
+    per Zoho's spec; the request body carries only the fields to update.
+    """
+    json_body = _shared.parse_body(body)
+    headers = {"X-Unique-Identifier-Key": key, "X-Unique-Identifier-Value": value}
+    if upsert:
+        headers["X-Upsert"] = "true"
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.put("/expenses", json_body=json_body, headers=headers)
+    _shared.emit_object(resp)
+
+
+@app.command("delete")
+def delete_expense(
+    expense_id: str = typer.Argument(..., help="Zoho Books expense_id."),
+):
+    """Delete an expense by ID."""
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.delete(f"/expenses/{expense_id}")
+    _shared.emit_action("expense_id", expense_id, resp)
+
+
+@comments_app.command("list")
+def list_comments(
+    expense_id: str = typer.Argument(..., help="Zoho Books expense_id."),
+):
+    """List history and comments for an expense (read-only)."""
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.get(f"/expenses/{expense_id}/comments")
+    _shared.emit_list(resp, "comments")
 
 
 @receipt_app.command("upload")
@@ -41,6 +156,29 @@ def receipt_upload(
             "uploaded": file.name,
             "size_bytes": file.stat().st_size,
             "response": resp,
+        }
+    )
+
+
+@receipt_app.command("get")
+def receipt_get(
+    expense_id: str = typer.Argument(..., help="Zoho Books expense_id."),
+    output_path: Path = typer.Option(
+        ..., "--output", "-o", help="Path to write the downloaded receipt file."
+    ),
+):
+    """Download the receipt file attached to an expense."""
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        body, content_type = client.get_bytes(f"/expenses/{expense_id}/receipt")
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(body)
+    output.emit_success(
+        {
+            "expense_id": expense_id,
+            "saved_to": str(output_path),
+            "size_bytes": len(body),
+            "content_type": content_type,
         }
     )
 

@@ -4,7 +4,45 @@ This file is a concise reference for AI agents using `zoho-books-cli`. Point you
 
 ## What this CLI is for
 
-Filling feature gaps in the Zoho Books MCP server — primarily uploading local binary files (receipts, attachments) to expenses, bills, and invoices. If an operation is well-supported by MCP, prefer MCP.
+Agent-first full coverage of Zoho Books. Current surfaces:
+
+- **`/expenses`** — list / get / create / update / delete / update-by-custom-field / comments list / receipt CRUD / attachments.
+- **`/recurringexpenses`** — CRUD + stop / resume / children / history.
+- **`/banktransactions`** — CRUD + match / unmatch / matches / exclude / restore / uncategorize + categorize (8 target types) + bulk statement import / last-imported / delete-last-imported.
+- **Binary uploads** — receipts and attachments on expenses, bills, and invoices. This remains the one thing MCP can't do cleanly.
+
+For anything not explicitly wrapped, use `zb raw <METHOD> <path>`.
+
+### IDs must be strings
+
+Zoho Books IDs are 19-digit integers that exceed JavaScript's safe-integer limit (2^53 − 1). Agents consuming this CLI's output from a JS runtime will lose precision if an ID is represented as a JSON number. **When you construct `--body` JSON, always quote IDs as strings.** This CLI never coerces ID fields to ints, but it can't prevent an upstream JSON parser from doing so if the original payload used a numeric literal.
+
+```bash
+# Correct — IDs are strings
+zb expenses create --body '{"account_id": "9820000005670010000", "amount": 42.50}'
+
+# Dangerous — IDs as JSON numbers may lose precision when your runtime re-parses them
+zb expenses create --body '{"account_id": 9820000005670010000, "amount": 42.50}'
+```
+
+### List endpoints and pagination
+
+Every list command is single-page passthrough and exposes Zoho's `page_context` verbatim:
+
+```json
+{"ok": true, "data": {"items": [...], "page_context": {"page": 1, "per_page": 200, "has_more_page": true}}}
+```
+
+If you need more rows, loop on `page_context.has_more_page` incrementing `--page` — the CLI does not auto-paginate.
+
+### Thin-wrapper convention
+
+Every wrapped command takes either:
+
+- `--query key=value` (repeatable) for URL query params, plus first-class `--page` / `--per-page` on list commands, **and/or**
+- `--body '<json>'` or `--body @path/to/file.json` for the request body.
+
+No typed per-field flags. Construct the JSON body from Zoho's API docs and pass it through.
 
 ## Invocation
 

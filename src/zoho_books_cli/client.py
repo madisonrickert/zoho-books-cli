@@ -50,6 +50,16 @@ class ZohoBooksClient:
     def get(self, path: str, *, query: dict[str, Any] | None = None) -> Any:
         return self._request("GET", path, query=query)
 
+    def get_bytes(
+        self, path: str, *, query: dict[str, Any] | None = None
+    ) -> tuple[bytes, str | None]:
+        """GET an endpoint that returns raw bytes (e.g. receipt PDF download).
+
+        Returns (body_bytes, content_type). Error responses (non-2xx) still raise
+        the typed exceptions via `_parse_response` of the JSON-parsed error body.
+        """
+        return self._request("GET", path, query=query, _raw_bytes=True)
+
     def post(
         self,
         path: str,
@@ -66,8 +76,9 @@ class ZohoBooksClient:
         *,
         query: dict[str, Any] | None = None,
         json_body: Any = None,
+        headers: dict[str, str] | None = None,
     ) -> Any:
-        return self._request("PUT", path, query=query, json_body=json_body)
+        return self._request("PUT", path, query=query, json_body=json_body, headers=headers)
 
     def delete(self, path: str, *, query: dict[str, Any] | None = None) -> Any:
         return self._request("DELETE", path, query=query)
@@ -104,8 +115,10 @@ class ZohoBooksClient:
         query: dict[str, Any] | None = None,
         json_body: Any = None,
         files: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
         _refreshed: bool = False,
         _retry_count: int = 0,
+        _raw_bytes: bool = False,
     ) -> Any:
         config.require_auth(self.cfg)
         if not self.cfg.org_id:
@@ -116,7 +129,9 @@ class ZohoBooksClient:
 
         url = self._build_url(path)
         params = {"organization_id": self.cfg.org_id, **(query or {})}
-        headers = {"Authorization": f"Zoho-oauthtoken {self._ensure_access_token()}"}
+        req_headers = {"Authorization": f"Zoho-oauthtoken {self._ensure_access_token()}"}
+        if headers:
+            req_headers.update(headers)
         timeout = UPLOAD_TIMEOUT if files else DEFAULT_TIMEOUT
 
         try:
@@ -126,7 +141,7 @@ class ZohoBooksClient:
                 params=params,
                 json=json_body if files is None else None,
                 files=files,
-                headers=headers,
+                headers=req_headers,
                 timeout=timeout,
             )
         except httpx.TimeoutException as e:
@@ -143,8 +158,10 @@ class ZohoBooksClient:
                 query=query,
                 json_body=json_body,
                 files=files,
+                headers=headers,
                 _refreshed=True,
                 _retry_count=_retry_count,
+                _raw_bytes=_raw_bytes,
             )
 
         if resp.status_code == 429:
@@ -162,10 +179,14 @@ class ZohoBooksClient:
                 query=query,
                 json_body=json_body,
                 files=files,
+                headers=headers,
                 _refreshed=_refreshed,
                 _retry_count=_retry_count + 1,
+                _raw_bytes=_raw_bytes,
             )
 
+        if _raw_bytes and resp.is_success:
+            return resp.content, resp.headers.get("content-type")
         return _parse_response(resp)
 
     def _build_url(self, path: str) -> str:
