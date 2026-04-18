@@ -12,11 +12,21 @@ import sys
 from typing import Any
 
 _PRETTY = False
+_DRY_RUN = False
 
 
 def set_pretty(value: bool) -> None:
     global _PRETTY
     _PRETTY = value
+
+
+def set_dry_run(value: bool) -> None:
+    global _DRY_RUN
+    _DRY_RUN = value
+
+
+def is_dry_run() -> bool:
+    return _DRY_RUN
 
 
 def emit_success(data: Any) -> None:
