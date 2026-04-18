@@ -56,7 +56,9 @@ def test_get(in_memory_storage):
     runner = CliRunner()
     with respx.mock() as mock:
         mock.get(f"{BASE}/recurringexpenses/R1").mock(
-            return_value=httpx.Response(200, json={"recurring_expense": {"recurring_expense_id": "R1"}})
+            return_value=httpx.Response(
+                200, json={"recurring_expense": {"recurring_expense_id": "R1"}}
+            )
         )
         result = runner.invoke(app, ["recurring-expenses", "get", "R1"])
     assert result.exit_code == 0, result.stderr
@@ -67,7 +69,9 @@ def test_create_posts_body(in_memory_storage):
     runner = CliRunner()
     with respx.mock() as mock:
         route = mock.post(f"{BASE}/recurringexpenses").mock(
-            return_value=httpx.Response(201, json={"recurring_expense": {"recurring_expense_id": "NEW"}})
+            return_value=httpx.Response(
+                201, json={"recurring_expense": {"recurring_expense_id": "NEW"}}
+            )
         )
         result = runner.invoke(
             app,
@@ -141,7 +145,9 @@ def test_update_by_custom_field_sends_headers(in_memory_storage):
     runner = CliRunner()
     with respx.mock() as mock:
         route = mock.put(f"{BASE}/recurringexpenses").mock(
-            return_value=httpx.Response(200, json={"recurring_expense": {"recurring_expense_id": "R1"}})
+            return_value=httpx.Response(
+                200, json={"recurring_expense": {"recurring_expense_id": "R1"}}
+            )
         )
         result = runner.invoke(
             app,

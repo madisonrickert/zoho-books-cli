@@ -122,9 +122,7 @@ def test_create_preserves_large_integer_ids_in_outgoing_body(in_memory_storage):
         route = mock.post(f"{BASE}/expenses").mock(
             return_value=httpx.Response(201, json={"expense": {}})
         )
-        result = runner.invoke(
-            app, ["expenses", "create", "--body", f'{{"customer_id": {big}}}']
-        )
+        result = runner.invoke(app, ["expenses", "create", "--body", f'{{"customer_id": {big}}}'])
     assert result.exit_code == 0, result.stderr
     outgoing = json.loads(route.calls[0].request.content)
     assert outgoing["customer_id"] == big
@@ -137,9 +135,7 @@ def test_update_puts_body(in_memory_storage):
         route = mock.put(f"{BASE}/expenses/EXP1").mock(
             return_value=httpx.Response(200, json={"expense": {"expense_id": "EXP1"}})
         )
-        result = runner.invoke(
-            app, ["expenses", "update", "EXP1", "--body", '{"amount": 99.99}']
-        )
+        result = runner.invoke(app, ["expenses", "update", "EXP1", "--body", '{"amount": 99.99}'])
     assert result.exit_code == 0, result.stderr
     assert json.loads(route.calls[0].request.content) == {"amount": 99.99}
 
@@ -242,9 +238,7 @@ def test_receipt_get_downloads_binary_to_file(in_memory_storage, tmp_path):
                 200, content=pdf_bytes, headers={"content-type": "application/pdf"}
             )
         )
-        result = runner.invoke(
-            app, ["expenses", "receipt", "get", "EXP1", "--output", str(out)]
-        )
+        result = runner.invoke(app, ["expenses", "receipt", "get", "EXP1", "--output", str(out)])
     assert result.exit_code == 0, result.stderr
     assert out.read_bytes() == pdf_bytes
     payload = json.loads(result.stdout)

@@ -100,9 +100,7 @@ def test_update(in_memory_storage):
         route = mock.put(f"{BASE}/contacts/C1").mock(
             return_value=httpx.Response(200, json={"contact": {}})
         )
-        result = runner.invoke(
-            app, ["contacts", "update", "C1", "--body", '{"notes": "updated"}']
-        )
+        result = runner.invoke(app, ["contacts", "update", "C1", "--body", '{"notes": "updated"}'])
     assert result.exit_code == 0, result.stderr
     assert route.called
 
