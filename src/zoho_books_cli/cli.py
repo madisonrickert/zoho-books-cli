@@ -18,9 +18,13 @@ from zoho_books_cli.commands import (
     auth,
     bank_transactions,
     bills,
+    chart_of_accounts,
+    contacts,
+    customer_payments,
     expenses,
     invoices,
     org,
+    projects,
     recurring_expenses,
 )
 from zoho_books_cli.commands.raw import raw as raw_command
@@ -29,9 +33,10 @@ from zoho_books_cli.errors import EXIT_UNKNOWN, NetworkError, ZohoCLIError
 app = typer.Typer(
     help=(
         "Agent-first CLI for Zoho Books. Full coverage of expenses, recurring "
-        "expenses, and bank transactions, plus binary uploads for receipts "
-        "and attachments. Outputs JSON on stdout; errors are JSON on stderr "
-        "with meaningful exit codes. See AGENTS.md."
+        "expenses, bank transactions, customer payments, projects, contacts, "
+        "and chart of accounts, plus binary uploads for receipts and "
+        "attachments. Outputs JSON on stdout; errors are JSON on stderr with "
+        "meaningful exit codes. See AGENTS.md."
     ),
     no_args_is_help=True,
     add_completion=False,
@@ -44,6 +49,10 @@ app.add_typer(recurring_expenses.app, name="recurring-expenses")
 app.add_typer(bank_transactions.app, name="bank-transactions")
 app.add_typer(bills.app, name="bills")
 app.add_typer(invoices.app, name="invoices")
+app.add_typer(customer_payments.app, name="customer-payments")
+app.add_typer(projects.app, name="projects")
+app.add_typer(contacts.app, name="contacts")
+app.add_typer(chart_of_accounts.app, name="chart-of-accounts")
 app.command("raw", help="Call any Zoho Books v3 endpoint directly.")(raw_command)
 
 
