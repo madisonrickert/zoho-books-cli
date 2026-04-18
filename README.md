@@ -1,13 +1,32 @@
 # zoho-books-cli
 
+**An agent-first command-line interface for [Zoho Books](https://www.zoho.com/books/) — built to complement the official MCP server where it can't reach.**
+
 [![CI](https://github.com/madisonrickert/zoho-books-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/madisonrickert/zoho-books-cli/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-An agent-first command-line interface for [Zoho Books](https://www.zoho.com/books/). Provides coverage of `/expenses`, `/recurringexpenses`, `/banktransactions`, `/customerpayments`, `/projects`, `/contacts`, and `/chartofaccounts`, plus the receipt and attachment binary uploads that the [Zoho Books MCP server](https://www.zoho.com/books/api/) can't do over JSON-RPC. IDs are preserved as strings end-to-end so 19-digit Zoho IDs don't lose precision in JavaScript consumers.
+Designed for AI agents and shell-scripted automation — Claude, ChatGPT, cron jobs, anything that can invoke a binary. Pair it with the [Zoho MCP server](https://mcp.zoho.com) to cover the workflows MCP wasn't built for:
 
-> **Primary consumer:** AI agents. Default output is JSON; errors are structured; exit codes are meaningful. See [`AGENTS.md`](AGENTS.md) for the full contract.
+- **File-attached workflows.** Upload receipts, attachments, and bank-statement imports directly from disk. MCP's JSON-RPC transport can't carry file bodies; `zb` does native multipart uploads with client-side validation.
+- **Full-coverage, write-heavy automation.** CRUD plus state actions — `mark-active`, `mark-inactive`, `clone`, `stop`, `resume`, `match`, `categorize`, `refunds` — across expenses, recurring expenses, bank transactions, customer payments, projects, contacts, and chart-of-accounts.
+- **Composable with any pipeline.** One-line JSON by default, stable exit codes, opt-in CSV / YAML / NDJSON streaming (`--page-all`), `--dry-run` previews, and `--params '{JSON}'` for agent-friendly query construction.
+
+Anything not yet wrapped is reachable via `zb raw <METHOD> <path>`, so the CLI never blocks an agent mid-workflow.
+
+```bash
+# attach a scanned receipt to an expense (a binary upload MCP can't carry)
+zb expenses receipt upload 982000000567001 ~/Downloads/starbucks.pdf
+
+# find a contact before a write; the output composes with jq, csv tooling, any pipeline
+zb contacts search "Reverb" --format csv
+
+# preview a destructive call without sending it — no network, no token refresh
+zb --dry-run customer-payments update P1 --body '{"project_id":"..."}'
+```
+
+> **Primary consumer:** AI agents. Default output is JSON; errors are structured; exit codes are meaningful. See [`AGENTS.md`](AGENTS.md) for the full contract. One subtle behavior worth calling out for MCP clients running on Node: Zoho's 19-digit IDs exceed JavaScript's `Number.MAX_SAFE_INTEGER`, so this CLI keeps them as strings end-to-end to avoid silent precision loss when JS consumers re-parse the output.
 
 ## Install
 
@@ -71,7 +90,7 @@ export ZOHO_REGION=us
 
 ## Usage
 
-### Upload a receipt to an expense (the headline feature)
+### Upload a receipt to an expense
 
 ```bash
 zb expenses receipt upload 982000000567001 ~/Downloads/starbucks.pdf
