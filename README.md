@@ -1,5 +1,10 @@
 # zoho-books-cli
 
+[![CI](https://github.com/madisonrickert/zoho-books-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/madisonrickert/zoho-books-cli/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
 An agent-first command-line interface for [Zoho Books](https://www.zoho.com/books/). Provides coverage of `/expenses`, `/recurringexpenses`, `/banktransactions`, `/customerpayments`, `/projects`, `/contacts`, and `/chartofaccounts`, plus the receipt and attachment binary uploads that the [Zoho Books MCP server](https://www.zoho.com/books/api/) can't do over JSON-RPC. IDs are preserved as strings end-to-end so 19-digit Zoho IDs don't lose precision in JavaScript consumers.
 
 > **Primary consumer:** AI agents. Default output is JSON; errors are structured; exit codes are meaningful. See [`AGENTS.md`](AGENTS.md) for the full contract.
