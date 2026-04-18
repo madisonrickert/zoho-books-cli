@@ -25,9 +25,7 @@ categorize_app = typer.Typer(
     help="Categorize an uncategorized bank transaction (one subcommand per target type).",
     no_args_is_help=True,
 )
-statements_app = typer.Typer(
-    help="Bulk bank statement import operations.", no_args_is_help=True
-)
+statements_app = typer.Typer(help="Bulk bank statement import operations.", no_args_is_help=True)
 app.add_typer(categorize_app, name="categorize")
 app.add_typer(statements_app, name="statements")
 

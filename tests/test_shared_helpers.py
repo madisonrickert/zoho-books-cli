@@ -11,7 +11,6 @@ from zoho_books_cli import output
 from zoho_books_cli.commands import _shared
 from zoho_books_cli.errors import ValidationError
 
-
 # ---- parse_body -------------------------------------------------------------
 
 

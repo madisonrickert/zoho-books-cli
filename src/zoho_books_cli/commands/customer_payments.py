@@ -17,9 +17,7 @@ app = typer.Typer(
     help="Customer payment operations (CRUD + update-by-custom-field + refunds).",
     no_args_is_help=True,
 )
-refunds_app = typer.Typer(
-    help="Refunds on a customer payment (CRUD).", no_args_is_help=True
-)
+refunds_app = typer.Typer(help="Refunds on a customer payment (CRUD).", no_args_is_help=True)
 app.add_typer(refunds_app, name="refunds")
 
 BASE = "/customerpayments"

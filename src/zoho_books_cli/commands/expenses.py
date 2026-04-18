@@ -91,9 +91,7 @@ def update_expense(
 
 @app.command("update-by-custom-field")
 def update_expense_by_custom_field(
-    key: str = typer.Option(
-        ..., "--key", help="Custom-field API name (e.g. cf_external_id)."
-    ),
+    key: str = typer.Option(..., "--key", help="Custom-field API name (e.g. cf_external_id)."),
     value: str = typer.Option(..., "--value", help="Custom-field value to match on."),
     body: str = typer.Option(
         ..., "--body", "-b", help="JSON body with the update fields. IDs must be strings."
