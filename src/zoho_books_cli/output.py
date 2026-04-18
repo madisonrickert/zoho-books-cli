@@ -16,14 +16,14 @@ import csv as _csv
 import io
 import json
 import sys
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 _FORMAT: OutputFormat  # set below
 _DRY_RUN = False
 
 
-class OutputFormat(str, Enum):
+class OutputFormat(StrEnum):
     json = "json"
     yaml = "yaml"
     table = "table"
@@ -118,7 +118,7 @@ def _write_csv(payload: dict[str, Any], *, stream) -> None:
     keys: list[str] = []
     for item in items:
         if isinstance(item, dict):
-            for key in item.keys():
+            for key in item:
                 if key not in keys:
                     keys.append(key)
 

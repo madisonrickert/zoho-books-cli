@@ -14,7 +14,6 @@ import httpx
 import typer
 
 from zoho_books_cli import __version__, output
-from zoho_books_cli.output import OutputFormat
 from zoho_books_cli.commands import (
     auth,
     bank_transactions,
@@ -30,6 +29,7 @@ from zoho_books_cli.commands import (
 )
 from zoho_books_cli.commands.raw import raw as raw_command
 from zoho_books_cli.errors import EXIT_UNKNOWN, NetworkError, ZohoCLIError
+from zoho_books_cli.output import OutputFormat
 
 app = typer.Typer(
     help=(
