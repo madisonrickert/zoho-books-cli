@@ -1,6 +1,6 @@
 ---
 name: zoho-books
-description: Use for any Zoho Books operation — listing/creating/updating/deleting expenses, recurring expenses, or bank transactions; categorizing/matching bank transactions; uploading local receipts or attachments. Triggers on phrases like "create an expense in Zoho", "categorize this bank transaction", "list uncategorized transactions", "attach this receipt", or any mention of a Zoho Books record ID combined with a CRUD or file operation. Prefer this CLI over the Zoho Books MCP when the user will consume IDs in JavaScript (MCP loses precision on 19-digit IDs) or when uploading local files.
+description: Use for any Zoho Books operation — listing/creating/updating/deleting expenses, recurring expenses, bank transactions, customer payments, projects, contacts, or chart-of-accounts entries; categorizing/matching bank transactions; issuing refunds on customer payments; uploading local receipts or attachments. Triggers on phrases like "create an expense in Zoho", "categorize this bank transaction", "find the contact named X", "refund this payment", "mark this project active", "attach this receipt", or any mention of a Zoho Books record ID combined with a CRUD or file operation. Prefer this CLI over the Zoho Books MCP when the user will consume IDs in JavaScript (MCP loses precision on 19-digit IDs) or when uploading local files.
 ---
 
 # Zoho Books CLI (`zb`)
@@ -15,8 +15,12 @@ Repo: <https://github.com/madisonrickert/zoho-books-cli>
 | ---- | --- |
 | Upload a local receipt / attachment file | **`zb`** |
 | CRUD on expenses, recurring expenses, bank transactions | **`zb`** (IDs preserved as strings) or MCP |
+| CRUD on customer payments (and refunds), projects, contacts, chart-of-accounts | **`zb`** (IDs preserved as strings) or MCP |
 | Categorize, match, or exclude bank transactions | **`zb`** or MCP |
-| CRUD on invoices, bills, contacts, customer payments | Zoho Books MCP (not yet wrapped in `zb`) |
+| Search contacts by name | **`zb contacts search <term>`** |
+| CRUD on invoices, bills | Zoho Books MCP (not yet wrapped in `zb`) |
+| Project sub-collections (users, tasks, comments) | Zoho Books MCP or `zb raw` |
+| Contact sub-collections (addresses, contact persons, 1099 tracking) | Zoho Books MCP or `zb raw` |
 | An endpoint neither wraps | `zb raw <METHOD> <path>` |
 
 **Prefer `zb` when** the user is in a JS/Node runtime and needs ID fields intact, or when the operation involves a local file.
@@ -122,6 +126,48 @@ zb bank-transactions statements delete <account_id> <statement_id>
 ```bash
 zb bills attachments add <bill_id> <file> [<file>...]
 zb invoices attachments add <invoice_id> <file> [<file>...]
+```
+
+### Customer payments
+
+```bash
+zb customer-payments list|get|create|update|delete ...
+zb customer-payments update-by-custom-field --key cf_... --value ... --body '{...}'
+zb customer-payments refunds list|get|create|update|delete <payment_id> [<refund_id>] ...
+```
+
+### Projects
+
+```bash
+zb projects list|get|create|update|delete ...
+zb projects update-by-custom-field --key cf_... --value ... --body '{...}'
+zb projects mark-active <id>
+zb projects mark-inactive <id>
+zb projects clone <id> [--body '{"project_name": "..."}']
+zb projects invoices <id>        # list invoices linked to a project
+```
+
+### Contacts
+
+```bash
+zb contacts list|get|create|update|delete ...
+zb contacts update-by-custom-field --key cf_... --value ... --body '{...}'
+zb contacts search <substring>   # GET /contacts?contact_name_contains=<substring>
+zb contacts mark-active <id>
+zb contacts mark-inactive <id>
+zb contacts comments <id>        # read-only activity feed
+```
+
+### Chart of accounts
+
+```bash
+zb chart-of-accounts list|get|create|update|delete ...
+zb chart-of-accounts mark-active|mark-inactive <id>
+zb chart-of-accounts transactions list [--query ...]
+zb chart-of-accounts transactions delete <transaction_id>
+
+# Useful filter for discovering paid-through (bank/cc) accounts:
+zb chart-of-accounts list --query filter_by=AccountType.PaidThrough --per-page 200
 ```
 
 ### Escape hatch

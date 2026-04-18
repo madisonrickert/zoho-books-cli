@@ -1,6 +1,6 @@
 # zoho-books-cli
 
-An agent-first command-line interface for [Zoho Books](https://www.zoho.com/books/). Provides full coverage of `/expenses`, `/recurringexpenses`, and `/banktransactions` plus the receipt and attachment binary uploads that the [Zoho Books MCP server](https://www.zoho.com/books/api/) can't do over JSON-RPC. IDs are preserved as strings end-to-end so 19-digit Zoho IDs don't lose precision in JavaScript consumers.
+An agent-first command-line interface for [Zoho Books](https://www.zoho.com/books/). Provides coverage of `/expenses`, `/recurringexpenses`, `/banktransactions`, `/customerpayments`, `/projects`, `/contacts`, and `/chartofaccounts`, plus the receipt and attachment binary uploads that the [Zoho Books MCP server](https://www.zoho.com/books/api/) can't do over JSON-RPC. IDs are preserved as strings end-to-end so 19-digit Zoho IDs don't lose precision in JavaScript consumers.
 
 > **Primary consumer:** AI agents. Default output is JSON; errors are structured; exit codes are meaningful. See [`AGENTS.md`](AGENTS.md) for the full contract.
 
@@ -149,6 +149,19 @@ zb bank-transactions statements delete <account_id> <statement_id>
 zb bills attachments add|delete
 zb invoices attachments add|delete
 
+zb customer-payments list|get|create|update|update-by-custom-field|delete
+zb customer-payments refunds list|get|create|update|delete
+
+zb projects list|get|create|update|update-by-custom-field|delete
+zb projects mark-active|mark-inactive|clone|invoices
+
+zb contacts list|get|create|update|update-by-custom-field|delete
+zb contacts search <term>
+zb contacts mark-active|mark-inactive|comments
+
+zb chart-of-accounts list|get|create|update|delete|mark-active|mark-inactive
+zb chart-of-accounts transactions list|delete
+
 zb raw <METHOD> <path>
 ```
 
@@ -205,7 +218,7 @@ Restart Claude Code (or run `/skills` to verify) and the `zoho-books` skill will
 
 ## Not yet wrapped
 
-`/bankaccounts/rules`, `/invoices` CRUD, `/bills` CRUD, `/contacts`, `/customerpayments`, and other surfaces still need `zb raw`. Coming in follow-up releases; contributions welcome.
+`/bankaccounts/rules`, `/invoices` CRUD, `/bills` CRUD, project sub-collections (users/tasks/comments), contact sub-collections (addresses/contact-persons/1099-tracking), and other surfaces still need `zb raw`. Coming in follow-up releases; contributions welcome.
 
 ## Security
 

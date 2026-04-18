@@ -9,6 +9,10 @@ Agent-first full coverage of Zoho Books. Current surfaces:
 - **`/expenses`** — list / get / create / update / delete / update-by-custom-field / comments list / receipt CRUD / attachments.
 - **`/recurringexpenses`** — CRUD + stop / resume / children / history.
 - **`/banktransactions`** — CRUD + match / unmatch / matches / exclude / restore / uncategorize + categorize (8 target types) + bulk statement import / last-imported / delete-last-imported.
+- **`/customerpayments`** — CRUD + update-by-custom-field + refunds CRUD.
+- **`/projects`** — CRUD + update-by-custom-field + mark-active / mark-inactive / clone + invoices list. Sub-collections (users, tasks, comments) stay on `zb raw`.
+- **`/contacts`** — CRUD + update-by-custom-field + search (name-contains) + mark-active / mark-inactive + comments read. Sub-collections (addresses, contact persons, 1099, portal, statements-email) stay on `zb raw`.
+- **`/chartofaccounts`** — CRUD + mark-active / mark-inactive + transactions list / delete.
 - **Binary uploads** — receipts and attachments on expenses, bills, and invoices. This remains the one thing MCP can't do cleanly.
 
 For anything not explicitly wrapped, use `zb raw <METHOD> <path>`.
