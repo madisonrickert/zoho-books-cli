@@ -33,6 +33,13 @@ def list_projects(
     ),
     page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
     per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
+    page_all: bool = typer.Option(
+        False, "--page-all", help="Auto-paginate (NDJSON: one page per line)."
+    ),
+    page_limit: int = typer.Option(10, "--page-limit", help="Max pages with --page-all."),
+    page_delay: int = typer.Option(
+        100, "--page-delay", help="Delay between pages in ms with --page-all."
+    ),
 ):
     """List projects. Returns one page plus page_context."""
     q = _shared.parse_query_pairs(query, params)
@@ -42,8 +49,15 @@ def list_projects(
         q["per_page"] = str(per_page)
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
-        resp = client.get(BASE, query=q)
-    _shared.emit_list(resp, "projects")
+        _shared.emit_list_paginated(
+            client,
+            BASE,
+            q,
+            "projects",
+            page_all=page_all,
+            page_limit=page_limit,
+            page_delay_ms=page_delay,
+        )
 
 
 @app.command("create")
@@ -170,6 +184,13 @@ def list_invoices(
     ),
     page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
     per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
+    page_all: bool = typer.Option(
+        False, "--page-all", help="Auto-paginate (NDJSON: one page per line)."
+    ),
+    page_limit: int = typer.Option(10, "--page-limit", help="Max pages with --page-all."),
+    page_delay: int = typer.Option(
+        100, "--page-delay", help="Delay between pages in ms with --page-all."
+    ),
 ):
     """List invoices associated with a project (GET /projects/{id}/invoices)."""
     q = _shared.parse_query_pairs(query, params)
@@ -179,5 +200,12 @@ def list_invoices(
         q["per_page"] = str(per_page)
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
-        resp = client.get(f"{BASE}/{project_id}/invoices", query=q)
-    _shared.emit_list(resp, "invoices")
+        _shared.emit_list_paginated(
+            client,
+            f"{BASE}/{project_id}/invoices",
+            q,
+            "invoices",
+            page_all=page_all,
+            page_limit=page_limit,
+            page_delay_ms=page_delay,
+        )

@@ -34,6 +34,13 @@ def list_contacts(
     ),
     page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
     per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
+    page_all: bool = typer.Option(
+        False, "--page-all", help="Auto-paginate (NDJSON: one page per line)."
+    ),
+    page_limit: int = typer.Option(10, "--page-limit", help="Max pages with --page-all."),
+    page_delay: int = typer.Option(
+        100, "--page-delay", help="Delay between pages in ms with --page-all."
+    ),
 ):
     """List contacts. Returns one page plus page_context."""
     q = _shared.parse_query_pairs(query, params)
@@ -43,8 +50,15 @@ def list_contacts(
         q["per_page"] = str(per_page)
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
-        resp = client.get(BASE, query=q)
-    _shared.emit_list(resp, "contacts")
+        _shared.emit_list_paginated(
+            client,
+            BASE,
+            q,
+            "contacts",
+            page_all=page_all,
+            page_limit=page_limit,
+            page_delay_ms=page_delay,
+        )
 
 
 @app.command("search")
@@ -52,6 +66,13 @@ def search_contacts(
     term: str = typer.Argument(..., help="Substring to match on contact_name."),
     page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
     per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
+    page_all: bool = typer.Option(
+        False, "--page-all", help="Auto-paginate (NDJSON: one page per line)."
+    ),
+    page_limit: int = typer.Option(10, "--page-limit", help="Max pages with --page-all."),
+    page_delay: int = typer.Option(
+        100, "--page-delay", help="Delay between pages in ms with --page-all."
+    ),
 ):
     """Search contacts by name substring (GET /contacts?contact_name_contains=...)."""
     q: dict[str, str] = {"contact_name_contains": term}
@@ -61,8 +82,15 @@ def search_contacts(
         q["per_page"] = str(per_page)
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
-        resp = client.get(BASE, query=q)
-    _shared.emit_list(resp, "contacts")
+        _shared.emit_list_paginated(
+            client,
+            BASE,
+            q,
+            "contacts",
+            page_all=page_all,
+            page_limit=page_limit,
+            page_delay_ms=page_delay,
+        )
 
 
 @app.command("create")
@@ -165,6 +193,13 @@ def list_comments(
     contact_id: str = typer.Argument(..., help="Zoho Books contact_id."),
     page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
     per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
+    page_all: bool = typer.Option(
+        False, "--page-all", help="Auto-paginate (NDJSON: one page per line)."
+    ),
+    page_limit: int = typer.Option(10, "--page-limit", help="Max pages with --page-all."),
+    page_delay: int = typer.Option(
+        100, "--page-delay", help="Delay between pages in ms with --page-all."
+    ),
 ):
     """List recent activity and comments on a contact (read-only)."""
     q: dict[str, str] = {}
@@ -174,5 +209,12 @@ def list_comments(
         q["per_page"] = str(per_page)
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
-        resp = client.get(f"{BASE}/{contact_id}/comments", query=q)
-    _shared.emit_list(resp, "comments")
+        _shared.emit_list_paginated(
+            client,
+            f"{BASE}/{contact_id}/comments",
+            q,
+            "comments",
+            page_all=page_all,
+            page_limit=page_limit,
+            page_delay_ms=page_delay,
+        )

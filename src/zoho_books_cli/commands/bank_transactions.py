@@ -45,6 +45,13 @@ def list_transactions(
     ),
     page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
     per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
+    page_all: bool = typer.Option(
+        False, "--page-all", help="Auto-paginate (NDJSON: one page per line)."
+    ),
+    page_limit: int = typer.Option(10, "--page-limit", help="Max pages with --page-all."),
+    page_delay: int = typer.Option(
+        100, "--page-delay", help="Delay between pages in ms with --page-all."
+    ),
 ):
     """List bank transactions. Returns one page plus page_context."""
     q = _shared.parse_query_pairs(query, params)
@@ -54,8 +61,15 @@ def list_transactions(
         q["per_page"] = str(per_page)
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
-        resp = client.get(BASE, query=q)
-    _shared.emit_list(resp, "banktransactions")
+        _shared.emit_list_paginated(
+            client,
+            BASE,
+            q,
+            "banktransactions",
+            page_all=page_all,
+            page_limit=page_limit,
+            page_delay_ms=page_delay,
+        )
 
 
 @app.command("create")
@@ -131,6 +145,13 @@ def list_matches(
     ),
     page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
     per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
+    page_all: bool = typer.Option(
+        False, "--page-all", help="Auto-paginate (NDJSON: one page per line)."
+    ),
+    page_limit: int = typer.Option(10, "--page-limit", help="Max pages with --page-all."),
+    page_delay: int = typer.Option(
+        100, "--page-delay", help="Delay between pages in ms with --page-all."
+    ),
 ):
     """List candidate matching transactions (GET /banktransactions/uncategorized/{id}/match)."""
     q = _shared.parse_query_pairs(query, params)
@@ -140,8 +161,15 @@ def list_matches(
         q["per_page"] = str(per_page)
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
-        resp = client.get(f"{UNCAT}/{transaction_id}/match", query=q)
-    _shared.emit_list(resp, "matching_transactions")
+        _shared.emit_list_paginated(
+            client,
+            f"{UNCAT}/{transaction_id}/match",
+            q,
+            "matching_transactions",
+            page_all=page_all,
+            page_limit=page_limit,
+            page_delay_ms=page_delay,
+        )
 
 
 @app.command("unmatch")
