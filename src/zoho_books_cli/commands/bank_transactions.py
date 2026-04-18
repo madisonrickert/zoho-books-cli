@@ -38,11 +38,16 @@ def list_transactions(
     query: list[str] = typer.Option(
         None, "--query", "-q", help="Query params as key=value. May be repeated."
     ),
+    params: str = typer.Option(
+        None,
+        "--params",
+        help="Query params as a JSON object. Merged on top of --query.",
+    ),
     page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
     per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
 ):
     """List bank transactions. Returns one page plus page_context."""
-    q = _shared.parse_query_pairs(query)
+    q = _shared.parse_query_pairs(query, params)
     if page is not None:
         q["page"] = str(page)
     if per_page is not None:
@@ -119,11 +124,16 @@ def match_transaction(
 def list_matches(
     transaction_id: str = typer.Argument(..., help="Zoho Books bank_transaction_id."),
     query: list[str] = typer.Option(None, "--query", "-q", help="Query params as key=value."),
+    params: str = typer.Option(
+        None,
+        "--params",
+        help="Query params as a JSON object. Merged on top of --query.",
+    ),
     page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
     per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
 ):
     """List candidate matching transactions (GET /banktransactions/uncategorized/{id}/match)."""
-    q = _shared.parse_query_pairs(query)
+    q = _shared.parse_query_pairs(query, params)
     if page is not None:
         q["page"] = str(page)
     if per_page is not None:

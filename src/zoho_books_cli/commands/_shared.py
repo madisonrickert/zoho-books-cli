@@ -38,10 +38,15 @@ def parse_body(raw: str | None) -> Any:
         raise ValidationError(f"--body is not valid JSON: {e}") from e
 
 
-def parse_query_pairs(pairs: list[str] | None) -> dict[str, str]:
-    """Parse repeated `--query key=value` flags into a dict of strings.
+def parse_query_pairs(
+    pairs: list[str] | None, params_json: str | None = None
+) -> dict[str, str]:
+    """Parse repeated `--query key=value` flags plus optional `--params <JSON>`.
 
-    Values are kept verbatim as strings; no integer coercion.
+    Merge order: `--query` pairs first, then `--params` JSON on top, so that
+    passing an explicit JSON object is treated as a deliberate override.
+    Values are coerced to strings (Zoho expects query params as strings); no
+    integer round-trip is introduced.
     """
     result: dict[str, str] = {}
     for item in pairs or []:
@@ -51,6 +56,22 @@ def parse_query_pairs(pairs: list[str] | None) -> dict[str, str]:
         if not key:
             raise ValidationError(f"--query key must be non-empty, got: {item}")
         result[key] = value
+    if params_json:
+        try:
+            parsed = json.loads(params_json)
+        except json.JSONDecodeError as e:
+            raise ValidationError(f"--params is not valid JSON: {e}") from e
+        if not isinstance(parsed, dict):
+            raise ValidationError(
+                f"--params must be a JSON object (got {type(parsed).__name__})."
+            )
+        for key, value in parsed.items():
+            if value is None:
+                result.pop(key, None)
+            elif isinstance(value, bool):
+                result[key] = "true" if value else "false"
+            else:
+                result[key] = str(value)
     return result
 
 
