@@ -77,6 +77,15 @@ def _root(
         "--pretty",
         help="Human-readable output (requires the 'rich' extra).",
     ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help=(
+            "Print the request that would be sent (method, url, query, body, "
+            "headers, files) as the success payload, without calling Zoho. "
+            "Useful for previewing destructive calls."
+        ),
+    ),
     version: bool = typer.Option(
         None,
         "--version",
@@ -93,6 +102,7 @@ def _root(
     ),
 ) -> None:
     output.set_pretty(pretty)
+    output.set_dry_run(dry_run)
 
 
 def _walk_group(group: click.Command, *, prefix: str) -> list[dict]:

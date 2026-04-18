@@ -14,8 +14,9 @@ import time
 from typing import Any
 
 import httpx
+import typer
 
-from zoho_books_cli import auth, config
+from zoho_books_cli import auth, config, output
 from zoho_books_cli.config import RuntimeConfig
 from zoho_books_cli.errors import (
     APIError,
@@ -129,6 +130,28 @@ class ZohoBooksClient:
 
         url = self._build_url(path)
         params = {"organization_id": self.cfg.org_id, **(query or {})}
+
+        if output.is_dry_run():
+            files_preview = None
+            if files:
+                files_preview = {
+                    field: {"filename": tup[0], "mime": tup[2]}
+                    for field, tup in files.items()
+                    if isinstance(tup, tuple) and len(tup) >= 3
+                }
+            output.emit_success(
+                {
+                    "dry_run": True,
+                    "method": method,
+                    "url": url,
+                    "query": params,
+                    "headers": dict(headers or {}),
+                    "json_body": json_body,
+                    "files": files_preview,
+                }
+            )
+            raise typer.Exit(0)
+
         req_headers = {"Authorization": f"Zoho-oauthtoken {self._ensure_access_token()}"}
         if headers:
             req_headers.update(headers)
