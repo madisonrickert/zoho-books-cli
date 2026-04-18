@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-Designed for AI agents and shell-scripted automation — Claude, ChatGPT, cron jobs, anything that can invoke a binary. Pair it with the [Zoho Books MCP server](https://www.zoho.com/books/api/) to cover the workflows MCP wasn't built for:
+Designed for AI agents and shell-scripted automation — Claude, ChatGPT, cron jobs, anything that can invoke a binary. Pair it with the [Zoho MCP server](https://mcp.zoho.com) to cover the workflows MCP wasn't built for:
 
 - **File-attached workflows.** Upload receipts, attachments, and bank-statement imports directly from disk. MCP's JSON-RPC transport can't carry file bodies; `zb` does native multipart uploads with client-side validation.
 - **Full-coverage, write-heavy automation.** CRUD plus state actions — `mark-active`, `mark-inactive`, `clone`, `stop`, `resume`, `match`, `categorize`, `refunds` — across expenses, recurring expenses, bank transactions, customer payments, projects, contacts, and chart-of-accounts.
