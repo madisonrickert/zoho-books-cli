@@ -40,6 +40,13 @@ def list_expenses(
     ),
     page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
     per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
+    page_all: bool = typer.Option(
+        False, "--page-all", help="Auto-paginate (NDJSON: one page per line)."
+    ),
+    page_limit: int = typer.Option(10, "--page-limit", help="Max pages with --page-all."),
+    page_delay: int = typer.Option(
+        100, "--page-delay", help="Delay between pages in ms with --page-all."
+    ),
 ):
     """List expenses. Returns one page plus page_context."""
     q = _shared.parse_query_pairs(query, params)
@@ -49,8 +56,15 @@ def list_expenses(
         q["per_page"] = str(per_page)
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
-        resp = client.get("/expenses", query=q)
-    _shared.emit_list(resp, "expenses")
+        _shared.emit_list_paginated(
+            client,
+            "/expenses",
+            q,
+            "expenses",
+            page_all=page_all,
+            page_limit=page_limit,
+            page_delay_ms=page_delay,
+        )
 
 
 @app.command("create")

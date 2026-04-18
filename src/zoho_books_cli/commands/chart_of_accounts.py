@@ -36,6 +36,13 @@ def list_accounts(
     ),
     page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
     per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
+    page_all: bool = typer.Option(
+        False, "--page-all", help="Auto-paginate (NDJSON: one page per line)."
+    ),
+    page_limit: int = typer.Option(10, "--page-limit", help="Max pages with --page-all."),
+    page_delay: int = typer.Option(
+        100, "--page-delay", help="Delay between pages in ms with --page-all."
+    ),
 ):
     """List chart-of-accounts accounts. Returns one page plus page_context."""
     q = _shared.parse_query_pairs(query, params)
@@ -45,8 +52,15 @@ def list_accounts(
         q["per_page"] = str(per_page)
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
-        resp = client.get(BASE, query=q)
-    _shared.emit_list(resp, "chartofaccounts")
+        _shared.emit_list_paginated(
+            client,
+            BASE,
+            q,
+            "chartofaccounts",
+            page_all=page_all,
+            page_limit=page_limit,
+            page_delay_ms=page_delay,
+        )
 
 
 @app.command("create")
@@ -130,6 +144,13 @@ def list_transactions(
     ),
     page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
     per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
+    page_all: bool = typer.Option(
+        False, "--page-all", help="Auto-paginate (NDJSON: one page per line)."
+    ),
+    page_limit: int = typer.Option(10, "--page-limit", help="Max pages with --page-all."),
+    page_delay: int = typer.Option(
+        100, "--page-delay", help="Delay between pages in ms with --page-all."
+    ),
 ):
     """List transactions posted to chart-of-accounts accounts."""
     q = _shared.parse_query_pairs(query, params)
@@ -139,8 +160,15 @@ def list_transactions(
         q["per_page"] = str(per_page)
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
-        resp = client.get(f"{BASE}/transactions", query=q)
-    _shared.emit_list(resp, "transactions")
+        _shared.emit_list_paginated(
+            client,
+            f"{BASE}/transactions",
+            q,
+            "transactions",
+            page_all=page_all,
+            page_limit=page_limit,
+            page_delay_ms=page_delay,
+        )
 
 
 @transactions_app.command("delete")

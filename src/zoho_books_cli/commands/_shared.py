@@ -89,6 +89,60 @@ def emit_list(resp: Any, collection_key: str) -> None:
     output.emit_success({"items": items, "page_context": page_context})
 
 
+def emit_list_paginated(
+    client: Any,
+    path: str,
+    query: dict[str, str],
+    collection_key: str,
+    *,
+    page_all: bool = False,
+    page_limit: int = 10,
+    page_delay_ms: int = 100,
+) -> None:
+    """Single-page passthrough by default; opt-in NDJSON auto-pagination.
+
+    When `page_all` is False (default), behaves like `client.get(...) →
+    emit_list(resp, collection_key)` — one JSON object, single page. This
+    preserves the existing agent contract.
+
+    When `page_all` is True, loops page=1,2,... up to `page_limit` or until
+    Zoho's `page_context.has_more_page` is false, whichever comes first. Each
+    page is emitted as its own JSON line (NDJSON) with the normal envelope, so
+    streaming consumers can process pages incrementally. Sleeps
+    `page_delay_ms` between requests to stay under rate limits.
+
+    Honors any existing `page` and `per_page` already set in the `query` dict
+    — `--page N --page-all` starts the sweep at N instead of 1.
+    """
+    if not page_all:
+        resp = client.get(path, query=query)
+        emit_list(resp, collection_key)
+        return
+
+    import time
+
+    q = dict(query)
+    start = int(q.get("page", "1"))
+    pages_fetched = 0
+    current = start
+    while pages_fetched < page_limit:
+        q["page"] = str(current)
+        resp = client.get(path, query=q)
+        if isinstance(resp, dict):
+            items = resp.get(collection_key, [])
+            page_ctx = resp.get("page_context", {})
+        else:
+            items = []
+            page_ctx = {}
+        output.emit_success({"items": items, "page_context": page_ctx})
+        pages_fetched += 1
+        if not page_ctx.get("has_more_page"):
+            break
+        if page_delay_ms > 0:
+            time.sleep(page_delay_ms / 1000.0)
+        current += 1
+
+
 def emit_object(resp: Any) -> None:
     """Emit a Zoho single-object response verbatim, stripping the envelope."""
     if not isinstance(resp, dict):
