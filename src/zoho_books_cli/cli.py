@@ -14,6 +14,7 @@ import httpx
 import typer
 
 from zoho_books_cli import __version__, output
+from zoho_books_cli.output import OutputFormat
 from zoho_books_cli.commands import (
     auth,
     bank_transactions,
@@ -72,10 +73,19 @@ def _list_commands_callback(value: bool) -> None:
 
 @app.callback()
 def _root(
+    format: OutputFormat = typer.Option(
+        OutputFormat.json,
+        "--format",
+        help=(
+            "Output format: json (default, one line), yaml, table (rich), "
+            "or csv (list responses only)."
+        ),
+        case_sensitive=False,
+    ),
     pretty: bool = typer.Option(
         False,
         "--pretty",
-        help="Human-readable output (requires the 'rich' extra).",
+        help="Deprecated alias for --format table.",
     ),
     dry_run: bool = typer.Option(
         False,
@@ -101,7 +111,9 @@ def _root(
         help="Print the full command tree as JSON and exit.",
     ),
 ) -> None:
-    output.set_pretty(pretty)
+    output.set_format(format)
+    if pretty:
+        output.set_pretty(True)  # overrides --format to table
     output.set_dry_run(dry_run)
 
 
