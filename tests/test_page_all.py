@@ -83,9 +83,7 @@ def test_page_all_emits_ndjson_until_has_more_is_false(in_memory_storage):
                 ]
             )
         )
-        result = runner.invoke(
-            app, ["contacts", "list", "--page-all", "--page-delay", "0"]
-        )
+        result = runner.invoke(app, ["contacts", "list", "--page-all", "--page-delay", "0"])
     assert result.exit_code == 0, result.stderr
     assert route.call_count == 3
     lines = [line for line in result.stdout.strip().split("\n") if line]

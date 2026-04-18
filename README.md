@@ -98,7 +98,9 @@ zb expenses list --query status=unfiled --page 1 --per-page 50
 zb bank-transactions list --query account_id=9820000005670010000 --per-page 25
 ```
 
-Every list command is single-page and exposes Zoho's `page_context`. Loop on `page_context.has_more_page` if you need more rows.
+Every list command is single-page by default and exposes Zoho's `page_context`. Loop on `page_context.has_more_page` if you need more rows — or pass `--page-all` to have the CLI stream pages as NDJSON (one page per line), bounded by `--page-limit` (default 10) and `--page-delay` (default 100ms between requests).
+
+Prefer `--params '{"account_id": "...", "per_page": 50}'` over repeated `--query k=v` when scripting — it's a single JSON object and easier for agents to assemble.
 
 ### Create, update, delete
 
@@ -177,7 +179,7 @@ All commands print a single JSON object:
 - **Success** → stdout: `{"ok": true, "data": {...}}`
 - **Error** → stderr: `{"ok": false, "error": {"code": "...", "message": "...", "details": {...}}}`
 
-Pass `--pretty` for human-readable output.
+Pass `--format json|yaml|table|csv` to switch serializers (`json` is default; `--pretty` is a legacy alias for `--format table`). Pass `--dry-run` to print the request that would be sent — method, url, query, body, headers, files — without calling Zoho. Useful for previewing destructive calls.
 
 Exit codes:
 

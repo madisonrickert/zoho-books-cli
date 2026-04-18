@@ -38,9 +38,7 @@ def parse_body(raw: str | None) -> Any:
         raise ValidationError(f"--body is not valid JSON: {e}") from e
 
 
-def parse_query_pairs(
-    pairs: list[str] | None, params_json: str | None = None
-) -> dict[str, str]:
+def parse_query_pairs(pairs: list[str] | None, params_json: str | None = None) -> dict[str, str]:
     """Parse repeated `--query key=value` flags plus optional `--params <JSON>`.
 
     Merge order: `--query` pairs first, then `--params` JSON on top, so that
@@ -62,9 +60,7 @@ def parse_query_pairs(
         except json.JSONDecodeError as e:
             raise ValidationError(f"--params is not valid JSON: {e}") from e
         if not isinstance(parsed, dict):
-            raise ValidationError(
-                f"--params must be a JSON object (got {type(parsed).__name__})."
-            )
+            raise ValidationError(f"--params must be a JSON object (got {type(parsed).__name__}).")
         for key, value in parsed.items():
             if value is None:
                 result.pop(key, None)

@@ -37,23 +37,33 @@ Every list command is single-page passthrough and exposes Zoho's `page_context` 
 {"ok": true, "data": {"items": [...], "page_context": {"page": 1, "per_page": 200, "has_more_page": true}}}
 ```
 
-If you need more rows, loop on `page_context.has_more_page` incrementing `--page` — the CLI does not auto-paginate.
+If you need more rows, either loop manually on `page_context.has_more_page` incrementing `--page`, or pass `--page-all` to have the CLI stream pages as NDJSON.
 
 ### Thin-wrapper convention
 
 Every wrapped command takes either:
 
-- `--query key=value` (repeatable) for URL query params, plus first-class `--page` / `--per-page` on list commands, **and/or**
+- `--query key=value` (repeatable) and/or `--params '<JSON>'` (single JSON object) for URL query params. Both merge into the final query dict; `--params` wins on conflict. First-class `--page` / `--per-page` on list commands, plus opt-in `--page-all` / `--page-limit` / `--page-delay` for NDJSON auto-pagination. **and/or**
 - `--body '<json>'` or `--body @path/to/file.json` for the request body.
 
 No typed per-field flags. Construct the JSON body from Zoho's API docs and pass it through.
+
+### Global flags (root)
+
+- `--format json|yaml|table|csv` — output format. Default `json` (one line, machine-parseable). `csv` renders list responses only; on a non-list response it falls back to json with a one-line stderr note. `--pretty` is a legacy alias for `--format table`.
+- `--dry-run` — print the request that would be sent (method, url, query, body, headers, files) as the success payload, without calling Zoho. No network I/O, no token refresh. Useful for previewing destructive calls.
+- `--page-all` (on any list command) — auto-paginate; emits one NDJSON line per page. Bounded by `--page-limit` (default 10) and `--page-delay` (ms between requests, default 100).
+
+### Command naming conventions
+
+- Commands named with a leading `+` (e.g. a future `zb expenses +from-receipt`) are **composed helpers**: a single CLI call that performs multiple API operations. Commands without the `+` prefix are thin one-to-one wrappers over a single Zoho endpoint. Use this signal to know whether you're invoking atomic API surface or a multi-step workflow.
 
 ## Invocation
 
 Binary name: `zb` (primary) or `zoho-books`.
 
 ```bash
-zb <group> <subcommand> [args...] [--pretty]
+zb <group> <subcommand> [args...] [--format json|yaml|table|csv] [--dry-run]
 ```
 
 Run `zb --list-commands` to get the full command tree as JSON:

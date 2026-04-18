@@ -48,7 +48,10 @@ def test_json_is_default(in_memory_storage):
         mock.get(f"{BASE}/contacts").mock(
             return_value=httpx.Response(
                 200,
-                json={"contacts": [{"contact_id": "C1", "contact_name": "Acme"}], "page_context": {}},
+                json={
+                    "contacts": [{"contact_id": "C1", "contact_name": "Acme"}],
+                    "page_context": {},
+                },
             )
         )
         result = runner.invoke(app, ["contacts", "list"])
