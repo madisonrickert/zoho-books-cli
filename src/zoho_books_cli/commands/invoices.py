@@ -232,14 +232,38 @@ def email_invoice(
         None,
         "--body",
         "-b",
-        help="Optional JSON body (to/cc/subject/body); empty body sends Zoho's default.",
+        help=(
+            "Optional JSON body, e.g. "
+            '{"to_mail_ids":["a@b.com"],"cc_mail_ids":["m@n.com"],'
+            '"subject":"...","body":"<p>HTML</p>"}. Empty body sends Zoho\'s '
+            "default mail content / saved-on-record recipients."
+        ),
+    ),
+    query: list[str] = typer.Option(
+        None,
+        "--query",
+        "-q",
+        help=(
+            "Query params as key=value (e.g. send_attachment=true, "
+            "send_customer_statement=true). May be repeated."
+        ),
+    ),
+    params: str = typer.Option(
+        None, "--params", help="Query params as a JSON object. Merged on top of --query."
     ),
 ):
-    """Email an invoice (POST /invoices/{id}/email)."""
+    """Email an invoice (POST /invoices/{id}/email).
+
+    Sends an ad-hoc email with the invoice attached. For dunning / overdue
+    reminders that pick up the org's payment-reminder template (with
+    {Balance}, {DaysOverdue} placeholders), use `invoices reminders send`
+    instead.
+    """
+    q = _shared.parse_query_pairs(query, params)
     json_body = _shared.parse_body(body)
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
-        resp = client.post(f"{BASE}/{invoice_id}/email", json_body=json_body)
+        resp = client.post(f"{BASE}/{invoice_id}/email", query=q, json_body=json_body)
     _shared.emit_action("invoice_id", invoice_id, resp)
 
 
@@ -253,14 +277,34 @@ def send_reminder(
         None,
         "--body",
         "-b",
-        help="Optional JSON body (to/cc/subject/body); empty body sends Zoho's default.",
+        help=(
+            "Optional JSON body, e.g. "
+            '{"to_mail_ids":["a@b.com"],"subject":"...","body":"<p>HTML</p>"}.'
+            " Empty body sends the configured reminder template."
+        ),
+    ),
+    query: list[str] = typer.Option(
+        None,
+        "--query",
+        "-q",
+        help="Query params as key=value (e.g. send_attachment=true). May be repeated.",
+    ),
+    params: str = typer.Option(
+        None, "--params", help="Query params as a JSON object. Merged on top of --query."
     ),
 ):
-    """Send a payment reminder for an invoice (POST /invoices/{id}/paymentreminder)."""
+    """Send a payment reminder for an invoice (POST /invoices/{id}/paymentreminder).
+
+    Uses Zoho's configured payment-reminder template (with placeholders like
+    {Balance} and {DaysOverdue}) and applies the org's dunning rules. For
+    one-off ad-hoc messages without the reminder semantics, use `invoices
+    email`.
+    """
+    q = _shared.parse_query_pairs(query, params)
     json_body = _shared.parse_body(body)
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
-        resp = client.post(f"{BASE}/{invoice_id}/paymentreminder", json_body=json_body)
+        resp = client.post(f"{BASE}/{invoice_id}/paymentreminder", query=q, json_body=json_body)
     _shared.emit_action("invoice_id", invoice_id, resp)
 
 
@@ -462,15 +506,55 @@ def get_document(
 ):
     """Get metadata for a specific document attached to an invoice.
 
-    Zoho exposes per-document GET only — there is no documents-list endpoint.
-    For binary download of the primary attachment, use `invoices attachments
-    get`. For per-document metadata, supply the document_id directly (find it
-    via the invoice payload's `documents[]` array).
+    Zoho exposes per-document GET only — there is no documents-list endpoint;
+    discover document_ids via the invoice payload's `documents[]` array. To
+    download the document's bytes (PDF or HTML rendering), use
+    `invoices documents download`.
     """
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
         resp = client.get(f"{BASE}/{invoice_id}/documents/{document_id}")
     _shared.emit_object(resp)
+
+
+@documents_app.command("download")
+def download_document(
+    invoice_id: str = typer.Argument(..., help="Zoho Books invoice_id."),
+    document_id: str = typer.Argument(..., help="Zoho Books document_id."),
+    output_path: Path = typer.Option(
+        ..., "--output", "-o", help="Path to write the downloaded document."
+    ),
+    format: str = typer.Option(
+        "pdf",
+        "--format",
+        help="Render format passed as Zoho's responseformat query param: pdf or html.",
+    ),
+):
+    """Download a document attached to an invoice as bytes (PDF / HTML).
+
+    Calls GET /invoices/{id}/documents/{doc_id}?responseformat={pdf|html}.
+    For the JSON metadata view, use `invoices documents get`.
+    """
+    if format not in {"pdf", "html"}:
+        raise typer.BadParameter("--format must be 'pdf' or 'html'.")
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        body, content_type = client.get_bytes(
+            f"{BASE}/{invoice_id}/documents/{document_id}",
+            query={"responseformat": format},
+        )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(body)
+    output.emit_success(
+        {
+            "invoice_id": invoice_id,
+            "document_id": document_id,
+            "format": format,
+            "saved_to": str(output_path),
+            "size_bytes": len(body),
+            "content_type": content_type,
+        }
+    )
 
 
 @documents_app.command("delete")

@@ -272,6 +272,19 @@ def test_email_default_body(in_memory_storage):
     assert route.calls[0].request.content == b""
 
 
+def test_email_query_round_trips(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.post(
+            f"{BASE}/invoices/I1/email",
+            params={"organization_id": "123456", "send_attachment": "true"},
+        ).mock(return_value=httpx.Response(200, json={"code": 0, "message": "sent"}))
+        result = runner.invoke(app, ["invoices", "email", "I1", "--query", "send_attachment=true"])
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+
+
 # --- reminders sub-app -------------------------------------------------------
 
 
@@ -420,6 +433,84 @@ def test_documents_get(in_memory_storage):
         )
         result = runner.invoke(app, ["invoices", "documents", "get", "I1", "D1"])
     assert result.exit_code == 0, result.stderr
+
+
+def test_documents_download_pdf(in_memory_storage, tmp_path):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    out = tmp_path / "doc.pdf"
+    body = b"%PDF-1.4\n%downloaded fake content\n"
+    with respx.mock() as mock:
+        route = mock.get(
+            f"{BASE}/invoices/I1/documents/D1",
+            params={"organization_id": "123456", "responseformat": "pdf"},
+        ).mock(
+            return_value=httpx.Response(
+                200, content=body, headers={"content-type": "application/pdf"}
+            )
+        )
+        result = runner.invoke(
+            app,
+            ["invoices", "documents", "download", "I1", "D1", "--output", str(out)],
+        )
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+    assert out.read_bytes() == body
+    payload = json.loads(result.stdout)
+    assert payload["data"]["format"] == "pdf"
+    assert payload["data"]["size_bytes"] == len(body)
+
+
+def test_documents_download_html(in_memory_storage, tmp_path):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    out = tmp_path / "doc.html"
+    body = b"<html><body>invoice</body></html>"
+    with respx.mock() as mock:
+        mock.get(
+            f"{BASE}/invoices/I1/documents/D1",
+            params={"organization_id": "123456", "responseformat": "html"},
+        ).mock(
+            return_value=httpx.Response(200, content=body, headers={"content-type": "text/html"})
+        )
+        result = runner.invoke(
+            app,
+            [
+                "invoices",
+                "documents",
+                "download",
+                "I1",
+                "D1",
+                "--output",
+                str(out),
+                "--format",
+                "html",
+            ],
+        )
+    assert result.exit_code == 0, result.stderr
+    assert out.read_bytes() == body
+
+
+def test_documents_download_rejects_bad_format(in_memory_storage, tmp_path):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    out = tmp_path / "doc.xyz"
+    result = runner.invoke(
+        app,
+        [
+            "invoices",
+            "documents",
+            "download",
+            "I1",
+            "D1",
+            "--output",
+            str(out),
+            "--format",
+            "xml",
+        ],
+    )
+    assert result.exit_code != 0
+    assert not out.exists()
 
 
 def test_documents_delete(in_memory_storage):
