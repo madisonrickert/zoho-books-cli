@@ -1,9 +1,15 @@
-"""`zb contacts ...` — CRUD + search + state actions + comments.
+"""`zb contacts ...` — CRUD + search + state actions + comments + addresses + persons.
 
-Thin wrappers: CRUD + update-by-custom-field + search (name-contains shortcut)
-+ mark-active / mark-inactive + comments read. Contact persons, addresses,
-refunds, 1099 tracking, portal/reminder toggles, and statement emails are left
-to `zb raw` until real usage signal appears.
+Thin wrappers: top-level CRUD + update-by-custom-field + search (name-contains
+shortcut) + mark-active / mark-inactive + comments (read-only) + addresses
+sub-app (CRUD over additional shipping/billing addresses) + persons sub-app
+(CRUD over contact persons). The 1099 tracking, portal/reminder toggles, and
+statement-email endpoints remain on `zb raw` until real usage signal appears.
+
+Live-verified envelope keys:
+- /contacts                            → contacts / contact
+- /contacts/{id}/address               → addresses
+- /contacts/contactpersons             → contact_persons / contact_person
 """
 
 from __future__ import annotations
@@ -15,9 +21,25 @@ from zoho_books_cli.client import ZohoBooksClient
 from zoho_books_cli.commands import _shared
 
 app = typer.Typer(
-    help="Contact operations (CRUD + search + mark-active / mark-inactive + comments).",
+    help=(
+        "Contact operations (CRUD + search + mark-active / mark-inactive + "
+        "comments + addresses + persons)."
+    ),
     no_args_is_help=True,
 )
+addresses_app = typer.Typer(
+    help="Additional addresses on a contact (list / add / update / delete + mark-primary).",
+    no_args_is_help=True,
+)
+persons_app = typer.Typer(
+    help=(
+        "Contact persons (CRUD + mark-primary). The resource lives under "
+        "/contacts/contactpersons (top-level), filtered by contact_id."
+    ),
+    no_args_is_help=True,
+)
+app.add_typer(addresses_app, name="addresses")
+app.add_typer(persons_app, name="persons")
 
 BASE = "/contacts"
 
@@ -218,3 +240,167 @@ def list_comments(
             page_limit=page_limit,
             page_delay_ms=page_delay,
         )
+
+
+# --- addresses sub-app -------------------------------------------------------
+
+
+@addresses_app.command("list")
+def addresses_list(
+    contact_id: str = typer.Argument(..., help="Zoho Books contact_id."),
+):
+    """List the contact's additional addresses (GET /contacts/{id}/address)."""
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.get(f"{BASE}/{contact_id}/address")
+    _shared.emit_list(resp, "addresses")
+
+
+@addresses_app.command("add")
+def addresses_add(
+    contact_id: str = typer.Argument(..., help="Zoho Books contact_id."),
+    body: str = typer.Option(..., "--body", "-b", help="JSON body. IDs must be strings."),
+):
+    """Add an additional address to a contact (POST /contacts/{id}/address)."""
+    json_body = _shared.parse_body(body)
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.post(f"{BASE}/{contact_id}/address", json_body=json_body)
+    _shared.emit_object(resp)
+
+
+@addresses_app.command("update")
+def addresses_update(
+    contact_id: str = typer.Argument(..., help="Zoho Books contact_id."),
+    address_id: str = typer.Argument(..., help="Zoho Books address_id."),
+    body: str = typer.Option(..., "--body", "-b", help="JSON body. IDs must be strings."),
+):
+    """Edit one of a contact's additional addresses (PUT /contacts/{id}/address/{address_id})."""
+    json_body = _shared.parse_body(body)
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.put(f"{BASE}/{contact_id}/address/{address_id}", json_body=json_body)
+    _shared.emit_object(resp)
+
+
+@addresses_app.command("delete")
+def addresses_delete(
+    contact_id: str = typer.Argument(..., help="Zoho Books contact_id."),
+    address_id: str = typer.Argument(..., help="Zoho Books address_id."),
+):
+    """Delete an additional address (DELETE /contacts/{id}/address/{address_id})."""
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.delete(f"{BASE}/{contact_id}/address/{address_id}")
+    _shared.emit_action("address_id", address_id, resp)
+
+
+# --- contact persons sub-app -------------------------------------------------
+
+
+@persons_app.command("list")
+def persons_list(
+    query: list[str] = typer.Option(
+        None,
+        "--query",
+        "-q",
+        help=("Query params as key=value (typically `contact_id=<id>` to scope). May be repeated."),
+    ),
+    params: str = typer.Option(
+        None,
+        "--params",
+        help="Query params as a JSON object. Merged on top of --query.",
+    ),
+    page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
+    per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
+    page_all: bool = typer.Option(
+        False, "--page-all", help="Auto-paginate (NDJSON: one page per line)."
+    ),
+    page_limit: int = typer.Option(10, "--page-limit", help="Max pages with --page-all."),
+    page_delay: int = typer.Option(
+        100, "--page-delay", help="Delay between pages in ms with --page-all."
+    ),
+):
+    """List contact persons. Supply contact_id via --query to scope to one contact."""
+    q = _shared.parse_query_pairs(query, params)
+    if page is not None:
+        q["page"] = str(page)
+    if per_page is not None:
+        q["per_page"] = str(per_page)
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        _shared.emit_list_paginated(
+            client,
+            f"{BASE}/contactpersons",
+            q,
+            "contact_persons",
+            page_all=page_all,
+            page_limit=page_limit,
+            page_delay_ms=page_delay,
+        )
+
+
+@persons_app.command("get")
+def persons_get(
+    contact_person_id: str = typer.Argument(..., help="Zoho Books contact_person_id."),
+):
+    """Get a single contact person by ID."""
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.get(f"{BASE}/contactpersons/{contact_person_id}")
+    _shared.emit_object(resp)
+
+
+@persons_app.command("create")
+def persons_create(
+    body: str = typer.Option(
+        ...,
+        "--body",
+        "-b",
+        help="JSON body, must include contact_id. IDs must be strings.",
+    ),
+):
+    """Create a contact person (POST /contacts/contactpersons)."""
+    json_body = _shared.parse_body(body)
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.post(f"{BASE}/contactpersons", json_body=json_body)
+    _shared.emit_object(resp)
+
+
+@persons_app.command("update")
+def persons_update(
+    contact_person_id: str = typer.Argument(..., help="Zoho Books contact_person_id."),
+    body: str = typer.Option(..., "--body", "-b", help="JSON body. IDs must be strings."),
+):
+    """Update a contact person."""
+    json_body = _shared.parse_body(body)
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.put(f"{BASE}/contactpersons/{contact_person_id}", json_body=json_body)
+    _shared.emit_object(resp)
+
+
+@persons_app.command("delete")
+def persons_delete(
+    contact_person_id: str = typer.Argument(..., help="Zoho Books contact_person_id."),
+):
+    """Delete a contact person."""
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.delete(f"{BASE}/contactpersons/{contact_person_id}")
+    _shared.emit_action("contact_person_id", contact_person_id, resp)
+
+
+@persons_app.command("mark-primary")
+def persons_mark_primary(
+    contact_person_id: str = typer.Argument(..., help="Zoho Books contact_person_id."),
+):
+    """Mark a contact person as the primary contact for their contact record.
+
+    POST /contacts/contactpersons/{contact_person_id}/primary.
+    """
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.post(f"{BASE}/contactpersons/{contact_person_id}/primary")
+    _shared.emit_action("contact_person_id", contact_person_id, resp)
