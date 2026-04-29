@@ -1,11 +1,13 @@
 """`zb recurring-invoices ...` — full coverage of /recurringinvoices.
 
 Thin wrappers: CRUD + update-by-custom-field + stop/resume + history (comments,
-read-only) + per-recurring template apply. To list child invoices spawned
-from a recurring invoice, filter the main invoices listing:
-    zb invoices list --query recurring_invoice_id=<id>
+read-only) + per-recurring template apply.
+
 Zoho does not expose a dedicated /recurringinvoices/{id}/childinvoices endpoint
-(verified live: 404).
+(verified live: 404). To list child invoices spawned from a recurring template,
+filter the main /invoices listing by recurring_invoice_id — currently via:
+    zb raw GET /invoices --query recurring_invoice_id=<id>
+Once `zb invoices list` lands, the same filter works through that command.
 """
 
 from __future__ import annotations

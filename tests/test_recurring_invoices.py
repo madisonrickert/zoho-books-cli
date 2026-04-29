@@ -120,6 +120,7 @@ def test_update_by_custom_field(in_memory_storage):
     assert result.exit_code == 0, result.stderr
     h = route.calls[0].request.headers
     assert h["X-Unique-Identifier-Key"] == "cf_external_id"
+    assert h["X-Unique-Identifier-Value"] == "abc"
     assert h["X-Upsert"] == "true"
 
 
