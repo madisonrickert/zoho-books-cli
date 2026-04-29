@@ -112,6 +112,46 @@ def test_update_by_custom_field_sets_headers(in_memory_storage):
     req = route.calls[0].request
     assert req.headers["X-Unique-Identifier-Key"] == "cf_external_id"
     assert req.headers["X-Unique-Identifier-Value"] == "abc"
+    assert "X-Upsert" not in req.headers
+
+
+def test_update_by_custom_field_upsert_header(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.put(f"{BASE}/bills").mock(return_value=httpx.Response(200, json={"bill": {}}))
+        result = runner.invoke(
+            app,
+            [
+                "bills",
+                "update-by-custom-field",
+                "--key",
+                "cf_external_id",
+                "--value",
+                "abc",
+                "--upsert",
+                "--body",
+                '{"vendor_id": "V1"}',
+            ],
+        )
+    assert result.exit_code == 0, result.stderr
+    assert route.calls[0].request.headers["X-Upsert"] == "true"
+
+
+def test_list_query_round_trips(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.get(
+            f"{BASE}/bills",
+            params={"organization_id": "123456", "status": "open", "vendor_id": "V1"},
+        ).mock(return_value=httpx.Response(200, json={"bills": [], "page_context": {}}))
+        result = runner.invoke(
+            app,
+            ["bills", "list", "--query", "status=open", "--query", "vendor_id=V1"],
+        )
+    assert result.exit_code == 0, result.stderr
+    assert route.called
 
 
 def test_delete(in_memory_storage):
@@ -278,6 +318,27 @@ def test_attachments_get_writes_file(in_memory_storage, tmp_path):
     payload = json.loads(result.stdout)
     assert payload["data"]["size_bytes"] == len(body)
     assert payload["data"]["content_type"] == "application/pdf"
+
+
+def test_attachments_get_404_does_not_create_file(in_memory_storage, tmp_path):
+    """A 404 on the GET must not leave a partial file or pre-create the parent
+    directory. The typed NotFound is raised from get_bytes; callers (e.g.
+    `zb` via `main()`) translate that to exit 4 / `code: not_found` per the
+    AGENTS.md error contract. Here we assert the in-process behavior:
+    NotFound surfaces and no filesystem artifact is created."""
+    from zoho_books_cli.errors import NotFound
+
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    out = tmp_path / "missing-subdir" / "downloaded.pdf"
+    with respx.mock() as mock:
+        mock.get(f"{BASE}/bills/B1/attachment").mock(
+            return_value=httpx.Response(404, json={"code": 1002, "message": "not found"})
+        )
+        result = runner.invoke(app, ["bills", "attachments", "get", "B1", "--output", str(out)])
+    assert isinstance(result.exception, NotFound)
+    assert not out.exists()
+    assert not out.parent.exists()
 
 
 def test_attachments_delete(in_memory_storage):

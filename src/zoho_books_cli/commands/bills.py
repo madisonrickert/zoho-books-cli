@@ -159,7 +159,7 @@ def mark_void(
 def mark_open(
     bill_id: str = typer.Argument(..., help="Zoho Books bill_id."),
 ):
-    """Reopen a void bill (POST /bills/{id}/status/open)."""
+    """Mark a bill as open (POST /bills/{id}/status/open)."""
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
         resp = client.post(f"{BASE}/{bill_id}/status/open")
@@ -190,7 +190,9 @@ def email_bill(
 @payments_app.command("list")
 def list_payments(
     bill_id: str = typer.Argument(..., help="Zoho Books bill_id."),
-    query: list[str] = typer.Option(None, "--query", "-q", help="Query params as key=value."),
+    query: list[str] = typer.Option(
+        None, "--query", "-q", help="Query params as key=value. May be repeated."
+    ),
     params: str = typer.Option(
         None,
         "--params",
@@ -232,10 +234,18 @@ def apply_payment(
         ...,
         "--body",
         "-b",
-        help="JSON body with bill_payments[]. IDs must be strings.",
+        help=(
+            'JSON body wrapping the application rows, e.g. {"bill_payments":'
+            '[{"payment_id":"...","amount_applied":100}]}. IDs must be strings.'
+        ),
     ),
 ):
-    """Apply a payment (or vendor credits) to a bill (POST /bills/{id}/payments)."""
+    """Apply existing payments or vendor credits to a bill (POST /bills/{id}/payments).
+
+    The endpoint applies pre-existing payment / vendor-credit records to this
+    bill; it does not create new payment records. Use the customer-payments or
+    `zb raw POST /vendorpayments` paths for record creation.
+    """
     json_body = _shared.parse_body(body)
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
@@ -248,7 +258,12 @@ def delete_payment(
     bill_id: str = typer.Argument(..., help="Zoho Books bill_id."),
     bill_payment_id: str = typer.Argument(..., help="Zoho Books bill_payment_id."),
 ):
-    """Remove an applied payment from a bill."""
+    """Unapply a payment from a bill (DELETE /bills/{id}/payments/{bill_payment_id}).
+
+    Removes only the application row that links this bill to the payment; the
+    underlying payment record (vendor-payment / vendor-credit) is untouched and
+    can be re-applied or applied to a different bill afterwards.
+    """
     cfg = config.load()
     with ZohoBooksClient(cfg) as client:
         resp = client.delete(f"{BASE}/{bill_id}/payments/{bill_payment_id}")
