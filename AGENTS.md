@@ -1,178 +1,101 @@
 # AGENTS.md — agent-developer guide
 
-This file is for AI agents (and humans) **contributing code** to the `zoho-books-cli` repo. It captures the architectural conventions, quality expectations, and workflow rules a contributor needs to ship a change without breaking the agent-facing contract.
+For agents (and humans) **contributing code**. Agent-**user** contract is in [`skills/zoho-books/SKILL.md`](skills/zoho-books/SKILL.md); human onboarding is in [`README.md`](README.md).
 
-If you are an agent that **uses** the CLI to do work in Zoho Books — see [`skills/zoho-books/SKILL.md`](skills/zoho-books/SKILL.md). Don't conflate the two: SKILL is the agent-user contract; this file is the agent-developer contract.
+## Layout
 
-For human onboarding (install, auth, headline examples), see [`README.md`](README.md).
+- `cli.py` — root Typer app, sub-app registration, error glue.
+- `client.py` — HTTPX wrapper: region routing, `organization_id` injection, 401-refresh-retry, 429 backoff (max 3), `--dry-run` short-circuit.
+- `auth.py` / `storage.py` / `config.py` — OAuth + keyring/file token persistence.
+- `regions.py`, `output.py`, `errors.py`, `_uploads.py` — region URLs, JSON/YAML/table/CSV emission, typed exceptions + exit codes, multipart validation.
+- `commands/<module>.py` — one module per Zoho v3 resource. Sub-collections are nested `typer.Typer()` sub-apps registered on the parent's `app`.
+- `commands/_shared.py` — helpers used by every wrapped module. Don't reinvent.
+- `tests/test_<module>.py` — one per command module; `conftest.py` has the `in_memory_storage` and `fake_cfg` fixtures.
 
-## Architectural conventions
+## Thin-wrapper rule
 
-### One module per Zoho v3 surface
+Each wrapped command is a 1:1 map onto a Zoho v3 endpoint, accepting:
 
-Each top-level Zoho resource gets its own file in `src/zoho_books_cli/commands/`:
+- `--body '<json>'` or `--body @file.json` — parsed via `_shared.parse_body`.
+- `--query k=v` (repeatable) and/or `--params '<JSON>'` — merged via `_shared.parse_query_pairs` (`--params` wins).
+- `--page` / `--per-page` / `--page-all` / `--page-limit` / `--page-delay` on every list.
 
-- `expenses.py`, `recurring_expenses.py` — expense-side
-- `invoices.py`, `recurring_invoices.py`, `bills.py` — sales / purchase docs
-- `customer_payments.py`, `bank_transactions.py`, `bank_account_rules.py` — money movement
-- `contacts.py`, `projects.py`, `chart_of_accounts.py` — master data
-- `org.py` — local-config + API-level org management
-- `auth.py`, `raw.py` — utility commands
+**No typed per-field flags** — JSON body keeps the surface stable as Zoho evolves. **Composed commands** (one CLI call, multiple API ops) **must** be prefixed with `+` (e.g. `zb expenses +from-receipt`); bare names always mean a single-endpoint wrapper.
 
-Sub-collections (e.g. `users` / `tasks` / `comments` under projects) are nested `typer.Typer()` sub-apps registered on the parent module's `app`.
+## Response emission
 
-### Thin-wrapper rule
+Route every response through one of these — don't invent new shapes.
 
-A wrapped command is a one-to-one map onto a Zoho v3 endpoint. It accepts:
+- `emit_list_paginated(client, path, query, key, ...)` — list endpoints; handles `--page-all` NDJSON.
+- `emit_list(resp, key)` — flat sub-resources without `page_context`.
+- `emit_object(resp)` — single-record GET/PUT/POST. Strips Zoho's `code`/`message`.
+- `emit_action(id_field, id_value, resp)` — verbs without a body (`delete`, `mark-active`, `stop`, ...).
 
-- `--body '<json>'` or `--body @file.json` for the request body (parsed via `_shared.parse_body`).
-- `--query key=value` (repeatable) and / or `--params '<JSON>'` for the query (merged via `_shared.parse_query_pairs`).
-- First-class `--page`, `--per-page`, `--page-all`, `--page-limit`, `--page-delay` on every list command.
+## Envelope keys: live-verify, don't guess
 
-There are **no typed per-field flags**. The body is JSON the agent constructs from Zoho's API docs. This is intentional — it keeps the CLI surface stable as Zoho evolves their schema and avoids reimplementing every field as a flag.
+When wrapping a new surface, **call the endpoint live** against a real Zoho org and confirm the collection / object key (`bills` vs `bill_list`, `task` vs `tasks` — the singular `task` is real). A wrong guess silently returns empty `items[]`. Record verified keys in the module docstring.
 
-A composed command (a single CLI call that performs multiple API operations) **must** be prefixed with `+` (e.g. `zb expenses +from-receipt`). Bare command names always mean a single-endpoint thin wrapper. Agents reading the command tree depend on this signal.
+## IDs as strings
 
-### Shared helpers (`commands/_shared.py`)
+Zoho IDs are 19 digits, exceeding JS's `Number.MAX_SAFE_INTEGER`. The CLI never coerces them; Python ints are arbitrary precision so `--body` round-trips safely. **Every `create` / `update` needs a regression test** that sends a 19-digit JSON-number literal and asserts wire-level preservation.
 
-Every wrapped command should route response emission through one of:
+## Tests (respx + `CliRunner`)
 
-- `emit_list_paginated(client, path, query, collection_key, ...)` — list endpoints. Handles `--page-all` NDJSON streaming and the standard `{items, page_context}` envelope shape.
-- `emit_list(resp, collection_key)` — sub-resources Zoho returns without `page_context` (e.g. `/projects/{id}/users`). No `--page-all` plumbing.
-- `emit_object(resp)` — single-record GET / PUT / POST. Strips Zoho's envelope `code`/`message` fields and emits the rest verbatim.
-- `emit_action(id_field, id_value, resp)` — verbs with no meaningful body (delete, mark-active, stop, etc.). Emits `{<id_field>, "acted": true, "response": resp}`.
+Mirror `tests/test_contacts.py`. Per command:
 
-Do not invent new emission shapes. If a new shape is genuinely needed, add it to `_shared.py` so every module can use it.
+- Happy-path test asserting response shape and (for writes) wire body.
+- 19-digit-ID preservation test on every `create` / `update`.
+- Header test on every `update-by-custom-field` (`X-Unique-Identifier-Key`/`-Value`, `X-Upsert`).
+- Binary downloads: success + 404 (asserts no partial file or parent dir).
+- Action verbs: path hit + `data.<id_field>` round-trip.
 
-### Envelope keys are live-verified, not guessed
+`uv run pytest` stays green at every commit.
 
-When wrapping a new surface, **call the endpoint live** against a real Zoho org and confirm the response collection / object key (e.g. `bills` vs `bill_list`, `task` vs `tasks`). The thin-wrapper helpers depend on the right key; a wrong guess silently emits empty `items` arrays — the worst possible failure mode for agents.
-
-The module docstring should record the verified keys near the top:
-
-```python
-"""...
-
-Live-verified envelope keys against the user's Zoho org:
-- /bills                  → bills / bill
-- /bills/{id}/payments    → payments
-- /bills/{id}/comments    → comments
-"""
-```
-
-### IDs as strings, end-to-end
-
-Zoho IDs are 19 digits and exceed JavaScript's `Number.MAX_SAFE_INTEGER`. The CLI never coerces ID-shaped fields to ints. Python ints in `--body` JSON round-trip safely (Python ints are arbitrary precision); the danger is downstream JS consumers, so the **agent-user contract** demands quoting IDs as strings in body JSON. The CLI enforces nothing here — but every `create` and `update` command should have a regression test that sends a 19-digit ID literal as a JSON number and asserts the wire body preserves it bit-for-bit.
-
-### Client behavior
-
-`src/zoho_books_cli/client.py` (`ZohoBooksClient`) handles:
-
-- Region → base URL routing (`regions.py`).
-- Automatic injection of `organization_id` as a query param.
-- 401 → transparent refresh → retry-once.
-- 429 → honor `Retry-After`, exponential backoff, max 3 retries.
-- Typed exceptions (`auth.py`, `errors.py`) mapped to CLI exit codes via `cli.py:main()`.
-- `--dry-run` short-circuit: emits the would-be request as the success payload and exits before any network I/O.
-
-Don't bypass the client unless the endpoint genuinely cannot tolerate `organization_id` injection — and even then, prefer extending the client over inlining `httpx.get(...)` (the `org list` workaround in `commands/org.py:list_orgs` is a historical exception, not a precedent).
-
-### Sub-app registration
-
-Sub-app names should be human-readable, dash-separated:
-
-```python
-# in commands/<module>.py
-attachments_app = typer.Typer(...)
-app.add_typer(attachments_app, name="attachments")
-```
-
-Top-level groups go in `cli.py` alphabetically near related groups. Don't introduce a new group without a clear naming rationale (e.g., `bank-rules` is top-level rather than nested under `bank-transactions` because it's an administrative concern, not a transaction action).
-
-## Quality expectations
-
-### Tests
-
-Every wrapped command needs respx + `CliRunner` coverage:
-
-- Happy-path test for each verb, asserting both response shape and (for write verbs) the wire body.
-- ID-as-string preservation test for every `create` / `update` (send a 19-digit literal as a JSON number, assert it survives the body parse and the request content).
-- Header-contract test for every `update-by-custom-field` (asserts `X-Unique-Identifier-Key`, `X-Unique-Identifier-Value`, and `X-Upsert` are set / absent correctly).
-- For binary downloads: success path + 404 path that asserts no partial file or parent directory was created.
-- For action verbs returning `code/message` envelopes: assert the path was hit and `data.<id_field>` round-trips.
-
-The test pattern is established in `tests/test_contacts.py`; mirror it. Don't introduce new test infrastructure unless the helper hits a real expressiveness limit.
-
-`uv run pytest` must stay green at every commit.
-
-### Lint / format
-
-Ruff is the source of truth.
+## Lint / format
 
 ```bash
 uv run ruff check src tests
 uv run ruff format --check src tests
 ```
 
-Both must pass. Pre-commit (`.pre-commit-config.yaml`) runs them on every commit; don't bypass with `--no-verify`.
+Pre-commit runs both; don't `--no-verify`.
 
-### Output contract is stable
+## Public contract stability
 
-The JSON shapes documented in [`SKILL.md`](skills/zoho-books/SKILL.md) are part of the public contract. **Don't change them lightly** — agents pin against them. New fields in `data` are fine; renaming or removing existing keys is a breaking change that needs a major-version bump.
+The JSON shapes in [`SKILL.md`](skills/zoho-books/SKILL.md) are public. Adding fields to `data` is fine; renaming/removing keys is breaking and needs a major bump.
 
-## Security expectations
+## Security
 
-- **Never log access tokens or refresh tokens.** They live in OS keyring (preferred) or `~/.config/zoho-books-cli/credentials.json` at `0600` (fallback). The auth code in `auth.py` and `storage.py` already handles this — don't print tokens for debugging without temporarily masking them.
-- **Never commit secrets.** `.env`, `credentials.json`, `.zb_*`, etc. are in `.gitignore`. `detect-secrets` runs in pre-commit (`.secrets.baseline`).
-- **Treat user-supplied paths as untrusted.** `_uploads.validate` checks size and type; don't add a code path that bypasses it for "performance."
-- **Don't make destructive Zoho calls in tests.** All HTTP calls in the suite are respx-mocked. If you need a live integration test, gate it behind an env-var opt-in and document it.
-- **`zb raw` is by design unfiltered.** Don't add server-side validation for paths/methods — it would only delay the inevitable Zoho 4xx, which the user can already read in the structured error.
+- **Never log tokens.** Stored in OS keyring (preferred) or `~/.config/zoho-books-cli/credentials.json` at `0600`. Mask before any debug print.
+- **Never commit secrets.** `.env`, `credentials.json`, `.zb_*` are gitignored; `detect-secrets` runs in pre-commit.
+- **Validate uploads.** `_uploads.validate` enforces type + size. Don't bypass.
+- **No destructive Zoho calls in tests** — all HTTP is respx-mocked. Live integration tests must be env-gated.
+- **`zb raw` is intentionally unfiltered** — don't add path/method validation.
 
-For disclosure policy, see [`SECURITY.md`](SECURITY.md).
+Disclosure policy: [`SECURITY.md`](SECURITY.md).
 
-## Branch / commit / review workflow
+## Workflow
 
-- **Live project, live users.** No unreviewed changes land on `main`. Even solo-internal work goes through a critical senior-engineer review gate before merge.
-- One feature per branch (`feat/<surface>`); separate branches for unrelated work to keep diffs reviewable. When two changes both extend the same module file (e.g. `addresses` and `persons` on `contacts.py`), combine them in one branch to avoid merge friction — but keep each commit atomic.
-- Atomic commits within a branch: module first, sub-app registration in `cli.py` next (single line, easy to revert), tests last. Then any review-feedback commits as separate commits on top.
-- Use the `superpowers:code-reviewer` agent (or equivalent) before merging. Address every Should-fix; document the resolution of every Nit (apply or explicitly skip with reasoning).
-- Trivial changes (typo fixes, README polish, dependency bumps, lint fixes) can land on `main` directly without a branch — see the user's stated preferences in `~/.claude/projects/.../memory/feedback_pr_ceremony.md`.
+Live published package. Substantive changes go through review before landing on `main`:
 
-## Verification checklist before merging a branch
+- One feature per branch (`feat/<surface>`). Atomic commits within: module → `cli.py` registration → tests → review fixes. Combine work touching the same file in one branch.
+- Run the `superpowers:code-reviewer` agent before merging. Address every Should-fix; document each Nit.
+- Trivial changes (typo fixes, dep bumps, lint) land on `main` directly. Boundary: `~/.claude/projects/.../memory/feedback_pr_ceremony.md`.
 
-1. `uv run pytest` — green.
-2. `uv run ruff check src tests` and `uv run ruff format --check src tests` — clean.
-3. New commands listed in `zb --list-commands | jq '.data.commands[].name'` — confirm they appear.
-4. At least one `--dry-run` smoke per branch: `uv run zb --dry-run <new-command> ...` — verify method/url/body shape match the documented Zoho endpoint.
-5. Live read against the user's real org (read-only) for any new GET endpoint — confirms envelope keys.
-6. Code review pass with applied fixes.
-7. README / SKILL / AGENTS docs updated if the public surface changed.
+## Pre-merge checklist
 
-## File map
-
-| File | What it owns |
-| ---- | ------------ |
-| `src/zoho_books_cli/cli.py` | Root Typer app, sub-app registration, `--list-commands`, error contract glue. |
-| `src/zoho_books_cli/client.py` | HTTPX wrapper; auth refresh; 429 handling; `--dry-run` short-circuit. |
-| `src/zoho_books_cli/auth.py`, `storage.py`, `config.py` | OAuth refresh and keyring/file persistence. |
-| `src/zoho_books_cli/regions.py` | Region → base URL mapping. |
-| `src/zoho_books_cli/output.py` | JSON / YAML / table / CSV emission; `emit_success`, `emit_error`. |
-| `src/zoho_books_cli/errors.py` | Typed exceptions + exit codes. |
-| `src/zoho_books_cli/_uploads.py` | File-type and size validation for multipart uploads. |
-| `src/zoho_books_cli/commands/_shared.py` | Helpers used by every wrapped module. |
-| `src/zoho_books_cli/commands/<module>.py` | One module per Zoho resource. |
-| `tests/conftest.py` | `in_memory_storage` and `fake_cfg` fixtures. |
-| `tests/test_<module>.py` | One test file per command module. |
-| `skills/zoho-books/SKILL.md` | Agent-user contract — keep in sync with shipped commands. |
-| `README.md` | Human onboarding. |
-| `pyproject.toml` | Package metadata, ruff config, pytest config. Bump `version` here on a release. |
+1. `uv run pytest` green.
+2. `uv run ruff check src tests` + `ruff format --check` clean.
+3. New commands appear in `zb --list-commands`.
+4. ≥1 `--dry-run` smoke per new command — confirms method/url/body shape.
+5. Live read against a real org for any new GET — confirms envelope keys.
+6. Reviewer pass with fixes applied.
+7. README / SKILL / AGENTS updated if the public surface changed; `__version__` and `pyproject.toml` bumped together for a release.
 
 ## When in doubt
 
-Read three things in order:
+1. Read 2-3 similar existing modules in `commands/`.
+2. Read `_shared.py`.
+3. Read the corresponding `tests/test_<module>.py` — the executable spec.
 
-1. The two or three most-similar existing modules in `commands/` — pattern fidelity wins.
-2. `commands/_shared.py` — every wrapped command should use these helpers.
-3. The corresponding `tests/test_<module>.py` — that's the executable spec for the agent-user contract.
-
-If those don't tell you what to do, ask before inventing a new pattern.
+If those don't answer it, ask before inventing a new pattern.
