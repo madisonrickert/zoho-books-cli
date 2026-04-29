@@ -367,7 +367,7 @@ def test_tasks_delete(in_memory_storage):
 # --- comments sub-app --------------------------------------------------------
 
 
-def test_p_comments_list(in_memory_storage):
+def test_project_comments_list(in_memory_storage):
     _setup_auth(in_memory_storage)
     runner = CliRunner()
     with respx.mock() as mock:
@@ -382,7 +382,7 @@ def test_p_comments_list(in_memory_storage):
     assert payload["data"]["items"] == [{"comment_id": "K1"}]
 
 
-def test_p_comments_add(in_memory_storage):
+def test_project_comments_add(in_memory_storage):
     _setup_auth(in_memory_storage)
     runner = CliRunner()
     with respx.mock() as mock:
@@ -397,7 +397,7 @@ def test_p_comments_add(in_memory_storage):
     assert json.loads(route.calls[0].request.content) == {"description": "Note"}
 
 
-def test_p_comments_delete(in_memory_storage):
+def test_project_comments_delete(in_memory_storage):
     _setup_auth(in_memory_storage)
     runner = CliRunner()
     with respx.mock() as mock:

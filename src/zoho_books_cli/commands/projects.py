@@ -263,7 +263,17 @@ def users_get(
 @users_app.command("add")
 def users_add(
     project_id: str = typer.Argument(..., help="Zoho Books project_id."),
-    body: str = typer.Option(..., "--body", "-b", help="JSON body. IDs must be strings."),
+    body: str = typer.Option(
+        ...,
+        "--body",
+        "-b",
+        help=(
+            'JSON body, e.g. {"users":[{"user_id":"...","user_role":"staff"}]}. '
+            "IDs must be strings. Body shape is per Zoho's spec; not directly "
+            "live-verified by this CLI — consult the Zoho Books API reference "
+            "for /projects/{id}/users POST if a request 4xx's."
+        ),
+    ),
 ):
     """Assign one or more existing users to a project (POST /projects/{id}/users)."""
     json_body = _shared.parse_body(body)
@@ -276,7 +286,16 @@ def users_add(
 @users_app.command("invite")
 def users_invite(
     project_id: str = typer.Argument(..., help="Zoho Books project_id."),
-    body: str = typer.Option(..., "--body", "-b", help="JSON body. IDs must be strings."),
+    body: str = typer.Option(
+        ...,
+        "--body",
+        "-b",
+        help=(
+            'JSON body, e.g. {"email":"a@b.com","user_role":"staff"}. IDs must '
+            "be strings. Body shape is per Zoho's spec; not directly "
+            "live-verified by this CLI."
+        ),
+    ),
 ):
     """Invite a new user to a project (POST /projects/{id}/users/invite)."""
     json_body = _shared.parse_body(body)
@@ -336,7 +355,13 @@ def tasks_list(
         100, "--page-delay", help="Delay between pages in ms with --page-all."
     ),
 ):
-    """List tasks attached to a project. Note Zoho's response key is the singular `task`."""
+    """List tasks attached to a project.
+
+    Zoho's response uses the SINGULAR collection key `task` (live-verified
+    against the production org). If Zoho ever changes this to plural `tasks`,
+    the items array will silently come back empty and this command will need
+    its collection-key argument flipped — track that as a known fragility.
+    """
     q = _shared.parse_query_pairs(query, params)
     if page is not None:
         q["page"] = str(page)
@@ -412,6 +437,14 @@ def tasks_delete(
 @comments_app.command("list")
 def comments_list(
     project_id: str = typer.Argument(..., help="Zoho Books project_id."),
+    query: list[str] = typer.Option(
+        None, "--query", "-q", help="Query params as key=value. May be repeated."
+    ),
+    params: str = typer.Option(
+        None,
+        "--params",
+        help="Query params as a JSON object. Merged on top of --query.",
+    ),
     page: int = typer.Option(None, "--page", help="Page number (1-indexed)."),
     per_page: int = typer.Option(None, "--per-page", help="Rows per page."),
     page_all: bool = typer.Option(
@@ -423,7 +456,7 @@ def comments_list(
     ),
 ):
     """List comments on a project."""
-    q: dict[str, str] = {}
+    q = _shared.parse_query_pairs(query, params)
     if page is not None:
         q["page"] = str(page)
     if per_page is not None:
