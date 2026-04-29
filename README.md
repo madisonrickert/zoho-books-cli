@@ -1,6 +1,6 @@
 # zoho-books-cli
 
-**An agent-first command-line interface for [Zoho Books](https://www.zoho.com/books/) — built to complement the official MCP server where it can't reach.**
+**An agent-first command-line interface for [Zoho Books](https://www.zoho.com/books/) — JSON-on-stdout, structured errors, native multipart for binary uploads, and 19-digit IDs preserved as strings end-to-end.**
 
 [![CI](https://github.com/madisonrickert/zoho-books-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/madisonrickert/zoho-books-cli/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -11,7 +11,7 @@ Designed for AI agents and shell-scripted automation — Claude, ChatGPT, cron j
 
 - **You're moving binary files.** Upload or download receipts, bill / invoice attachments, bank-statement imports, and document PDFs directly. MCP's JSON-RPC transport can't carry file bodies; `zb` does native multipart with client-side validation.
 - **Response IDs flow into JavaScript.** Zoho's 19-digit IDs exceed `Number.MAX_SAFE_INTEGER`. `zb` keeps every ID as a string end-to-end so JS consumers don't silently corrupt them.
-- **You need full v3 coverage in one place.** CRUD plus the action verbs — `mark-sent` / `mark-void` / `write-off` on invoices; `mark-void` / `mark-open` / `email` on bills; `apply` / `unapply` for credits and bill payments; `stop` / `resume` for recurring records; `match` / `categorize` / `exclude` / `restore` on bank transactions; `add` / `invite` / `update` for project users; addresses and contact persons on contacts; full bank account rules — across **every surface the Zoho v3 API exposes**.
+- **You need first-class verbs for state and two-step workflows.** `mark-sent` / `mark-void` / `write-off` on invoices; `mark-void` / `mark-open` / `email` on bills; `apply` / `unapply` for credits and bill payments; `stop` / `resume` on recurring records; `match` / `categorize` / `exclude` / `restore` on bank transactions; `add` / `invite` / `update` for project users; addresses and contact persons; bank account rules. (Coverage is broad but not exhaustive — see "Not yet wrapped" below for what still routes through `zb raw`.)
 - **You want pipelines, not prose.** One-line JSON by default, stable exit codes, opt-in CSV / YAML / NDJSON streaming (`--page-all`), `--dry-run` previews, `--params '{JSON}'` for agent-friendly query construction.
 
 Anything not yet wrapped is reachable via `zb raw <METHOD> <path>`, so the CLI never blocks an agent mid-workflow.
@@ -151,74 +151,27 @@ zb raw GET /invoices --query "status=unpaid"
 zb raw POST /contacts --body '{"contact_name":"Acme"}'
 ```
 
-## Command tree
+## Command groups
 
+```bash
+zb --list-commands       # authoritative tree as JSON — always current
+zb <group> --help        # per-group help
 ```
-zb --list-commands         # full machine-readable command tree (JSON)
 
-zb auth login|status|refresh|logout
-zb org list|use|current
-zb org get <organization_id>
-zb org update <organization_id> --body '{...}'
+Top-level groups:
 
-zb expenses list|get|create|update|update-by-custom-field|delete
-zb expenses receipt upload|get|delete
-zb expenses attachments add|delete
-zb expenses comments list
+- `auth`, `org` — login / token refresh / org selection / org get / org update
+- `expenses`, `recurring-expenses` — CRUD + receipts + attachments + comments + stop/resume
+- `bank-transactions`, `bank-rules` — CRUD + match/categorize/exclude/restore + 8-target categorize verbs + statement import + rules CRUD
+- `bills` — CRUD + mark-void / mark-open / email + payments apply/unapply + comments + attachments add/get/delete
+- `invoices`, `recurring-invoices` — CRUD + state (mark-sent / mark-void / mark-draft / write-off / cancel-write-off) + email + reminders + credits apply/unapply + comments + documents get/download/delete + attachments + templates list/apply
+- `customer-payments` — CRUD + refunds CRUD
+- `projects` — CRUD + clone + state + invoices list + users / tasks / comments sub-apps
+- `contacts` — CRUD + search + state + comments + addresses sub-app + persons sub-app
+- `chart-of-accounts` — CRUD + state + transactions list / delete
+- `raw` — escape hatch to any Zoho v3 endpoint
 
-zb recurring-expenses list|get|create|update|update-by-custom-field|delete
-zb recurring-expenses stop|resume|children|history
-
-zb bank-transactions list|get|create|update|delete
-zb bank-transactions match|matches|unmatch|exclude|restore|uncategorize
-zb bank-transactions categorize generic|expense|vendor-payment|customer-payment
-zb bank-transactions categorize credit-note-refund|vendor-credit-refund
-zb bank-transactions categorize payment-refund|vendor-payment-refund
-zb bank-transactions statements import|last-imported|delete
-
-zb bank-rules list|get|create|update|delete
-
-zb bills list|get|create|update|update-by-custom-field|delete
-zb bills mark-void|mark-open|email
-zb bills payments list|apply|delete
-zb bills comments list
-zb bills attachments add|get|delete
-
-zb invoices list|get|create|update|update-by-custom-field|delete
-zb invoices mark-sent|mark-void|mark-draft
-zb invoices write-off|cancel-write-off
-zb invoices email
-zb invoices reminders send
-zb invoices payments list                # read-only; record payments via `customer-payments create`
-zb invoices credits list|apply|delete
-zb invoices comments list|add|delete
-zb invoices documents get|download|delete
-zb invoices attachments add|get|delete
-zb invoices templates list|apply
-
-zb recurring-invoices list|get|create|update|update-by-custom-field|delete
-zb recurring-invoices stop|resume|history
-zb recurring-invoices templates apply
-
-zb customer-payments list|get|create|update|update-by-custom-field|delete
-zb customer-payments refunds list|get|create|update|delete
-
-zb projects list|get|create|update|update-by-custom-field|delete
-zb projects mark-active|mark-inactive|clone|invoices
-zb projects users list|get|add|invite|update|delete
-zb projects tasks list|get|add|update|delete
-zb projects comments list|add|delete
-
-zb contacts list|search|get|create|update|update-by-custom-field|delete
-zb contacts mark-active|mark-inactive|comments
-zb contacts addresses list|add|update|delete
-zb contacts persons list|get|create|update|delete|mark-primary
-
-zb chart-of-accounts list|get|create|update|delete|mark-active|mark-inactive
-zb chart-of-accounts transactions list|delete
-
-zb raw <METHOD> <path>
-```
+The full per-command list with arguments and help text comes from `zb --list-commands`. The agent-user contract — output shapes, error codes, idempotency notes, end-to-end flows — lives in [`skills/zoho-books/SKILL.md`](skills/zoho-books/SKILL.md).
 
 ## Output contract
 
@@ -273,7 +226,28 @@ Restart Claude Code (or run `/skills` to verify) and the `zoho-books` skill will
 
 ## Not yet wrapped
 
-The CLI now covers every surface the Zoho MCP exposes plus several it doesn't (binary uploads/downloads, full bills CRUD, invoice templates, project sub-collections, contact addresses and contact persons, bank account rules). A handful of contact-side niche endpoints (1099 tracking, portal/reminder toggles, statement-email triggers) still need `zb raw` until usage signal warrants a typed wrapper. Anything else missing? Open an issue or use `zb raw <METHOD> <path>` in the meantime.
+The CLI wraps a broad slice of the Zoho Books v3 API but does **not** cover all of it.
+
+**Whole resources still on `zb raw` only:**
+
+- `/items` (item catalog)
+- `/estimates`, `/retainerinvoices`
+- `/creditnotes`, `/vendorcredits`
+- `/vendorpayments` (the record itself; we have `bills payments apply` for the application)
+- `/purchaseorders`, `/salesorders`
+- `/journals` (manual journal entries)
+- `/bankaccounts` top-level CRUD (we have rules + statement import, not the accounts themselves)
+- `/timeentries` (project time-tracking entries)
+- `/users` (org users), `/taxes`, `/currencies`, `/settings/*`
+
+**Within wrapped surfaces, gaps still routing through `zb raw`:**
+
+- Bills: `submit-for-approval`, `approve`, billing-address edit
+- Invoices: customer-statements email, billing-address edit
+- Contacts: 1099 tracking, portal/reminder toggles, statements-email, opening balance
+- Recurring expenses / invoices: anything beyond what's listed in the command groups above
+
+If one of these is blocking you, open an issue or wrap it locally — `commands/_shared.py` plus the existing module patterns make it ~50 lines per CRUD surface. In the meantime: `zb raw <METHOD> <path>` reaches anything authenticated.
 
 ## Contributing
 

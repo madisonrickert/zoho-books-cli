@@ -35,11 +35,16 @@ from zoho_books_cli.output import OutputFormat
 
 app = typer.Typer(
     help=(
-        "Agent-first CLI for Zoho Books. Full coverage of expenses, recurring "
-        "expenses, bank transactions, customer payments, projects, contacts, "
-        "and chart of accounts, plus binary uploads for receipts and "
-        "attachments. Outputs JSON on stdout; errors are JSON on stderr with "
-        "meaningful exit codes. See AGENTS.md."
+        "Agent-first CLI for Zoho Books. Wraps expenses, recurring "
+        "expenses/invoices, bank transactions and rules, customer payments, "
+        "bills, invoices, projects, contacts, chart of accounts, and "
+        "organizations — plus native binary uploads/downloads for receipts "
+        "and attachments. Anything outside the wrapped set (items, "
+        "estimates, credit notes, vendor payments, purchase/sales orders, "
+        "journals, time entries, etc.) is reachable via `zb raw`. Outputs "
+        "JSON on stdout; errors are JSON on stderr with meaningful exit "
+        "codes. See skills/zoho-books/SKILL.md for the agent-user contract; "
+        "see AGENTS.md to contribute."
     ),
     no_args_is_help=True,
     add_completion=False,
