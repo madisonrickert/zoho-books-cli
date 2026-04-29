@@ -16,6 +16,7 @@ import typer
 from zoho_books_cli import __version__, output
 from zoho_books_cli.commands import (
     auth,
+    bank_account_rules,
     bank_transactions,
     bills,
     chart_of_accounts,
@@ -48,6 +49,7 @@ app.add_typer(org.app, name="org")
 app.add_typer(expenses.app, name="expenses")
 app.add_typer(recurring_expenses.app, name="recurring-expenses")
 app.add_typer(bank_transactions.app, name="bank-transactions")
+app.add_typer(bank_account_rules.app, name="bank-rules")
 app.add_typer(bills.app, name="bills")
 app.add_typer(invoices.app, name="invoices")
 app.add_typer(customer_payments.app, name="customer-payments")
