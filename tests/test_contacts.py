@@ -180,3 +180,178 @@ def test_comments(in_memory_storage):
     assert result.exit_code == 0, result.stderr
     payload = json.loads(result.stdout)
     assert payload["data"]["items"] == [{"comment_id": "K1"}]
+
+
+# --- addresses sub-app -------------------------------------------------------
+
+
+def test_addresses_list(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.get(
+            f"{BASE}/contacts/C1/address",
+            params={"organization_id": "123456"},
+        ).mock(return_value=httpx.Response(200, json={"addresses": [{"address_id": "A1"}]}))
+        result = runner.invoke(app, ["contacts", "addresses", "list", "C1"])
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+    payload = json.loads(result.stdout)
+    assert payload["data"]["items"] == [{"address_id": "A1"}]
+
+
+def test_addresses_add(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.post(f"{BASE}/contacts/C1/address").mock(
+            return_value=httpx.Response(201, json={"address": {"address_id": "A2"}})
+        )
+        result = runner.invoke(
+            app,
+            [
+                "contacts",
+                "addresses",
+                "add",
+                "C1",
+                "--body",
+                '{"attention":"AP","address":"1 Main St"}',
+            ],
+        )
+    assert result.exit_code == 0, result.stderr
+    assert json.loads(route.calls[0].request.content) == {
+        "attention": "AP",
+        "address": "1 Main St",
+    }
+
+
+def test_addresses_update(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.put(f"{BASE}/contacts/C1/address/A1").mock(
+            return_value=httpx.Response(200, json={"address": {}})
+        )
+        result = runner.invoke(
+            app, ["contacts", "addresses", "update", "C1", "A1", "--body", '{"city":"NY"}']
+        )
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+
+
+def test_addresses_delete(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.delete(f"{BASE}/contacts/C1/address/A1").mock(
+            return_value=httpx.Response(200, json={"code": 0, "message": "deleted"})
+        )
+        result = runner.invoke(app, ["contacts", "addresses", "delete", "C1", "A1"])
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+    payload = json.loads(result.stdout)
+    assert payload["data"]["address_id"] == "A1"
+
+
+# --- contact persons sub-app -------------------------------------------------
+
+
+def test_persons_list_requires_contact_id_positional(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.get(
+            f"{BASE}/contacts/contactpersons",
+            params={"organization_id": "123456", "contact_id": "C1"},
+        ).mock(
+            return_value=httpx.Response(
+                200, json={"contact_persons": [{"contact_person_id": "P1"}], "page_context": {}}
+            )
+        )
+        result = runner.invoke(app, ["contacts", "persons", "list", "C1"])
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+    payload = json.loads(result.stdout)
+    assert payload["data"]["items"] == [{"contact_person_id": "P1"}]
+
+
+def test_persons_list_missing_contact_id_errors(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    # No contact_id → typer rejects before any HTTP call.
+    result = runner.invoke(app, ["contacts", "persons", "list"])
+    assert result.exit_code != 0
+
+
+def test_persons_get(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        mock.get(f"{BASE}/contacts/contactpersons/P1").mock(
+            return_value=httpx.Response(200, json={"contact_person": {"contact_person_id": "P1"}})
+        )
+        result = runner.invoke(app, ["contacts", "persons", "get", "P1"])
+    assert result.exit_code == 0, result.stderr
+
+
+def test_persons_create_preserves_large_ids(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    big = 9820000005670010000
+    with respx.mock() as mock:
+        route = mock.post(f"{BASE}/contacts/contactpersons").mock(
+            return_value=httpx.Response(201, json={"contact_person": {}})
+        )
+        result = runner.invoke(
+            app,
+            [
+                "contacts",
+                "persons",
+                "create",
+                "--body",
+                f'{{"contact_id": {big}, "first_name": "Pat"}}',
+            ],
+        )
+    assert result.exit_code == 0, result.stderr
+    outgoing = json.loads(route.calls[0].request.content)
+    assert outgoing["contact_id"] == big
+
+
+def test_persons_update(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.put(f"{BASE}/contacts/contactpersons/P1").mock(
+            return_value=httpx.Response(200, json={"contact_person": {}})
+        )
+        result = runner.invoke(
+            app, ["contacts", "persons", "update", "P1", "--body", '{"email":"a@b.com"}']
+        )
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+
+
+def test_persons_delete(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.delete(f"{BASE}/contacts/contactpersons/P1").mock(
+            return_value=httpx.Response(200, json={"code": 0, "message": "deleted"})
+        )
+        result = runner.invoke(app, ["contacts", "persons", "delete", "P1"])
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+    payload = json.loads(result.stdout)
+    assert payload["data"]["contact_person_id"] == "P1"
+
+
+def test_persons_mark_primary(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.post(f"{BASE}/contacts/contactpersons/P1/primary").mock(
+            return_value=httpx.Response(200, json={"code": 0, "message": "primary"})
+        )
+        result = runner.invoke(app, ["contacts", "persons", "mark-primary", "P1"])
+    assert result.exit_code == 0, result.stderr
+    assert route.called
