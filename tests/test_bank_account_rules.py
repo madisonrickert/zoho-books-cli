@@ -32,7 +32,12 @@ def test_list(in_memory_storage):
     _setup_auth(in_memory_storage)
     runner = CliRunner()
     with respx.mock() as mock:
-        mock.get(f"{BASE}/bankaccounts/rules").mock(
+        # Match on query params so the test fails if --query account_id=...
+        # is silently dropped — Zoho rejects the call without an account_id.
+        route = mock.get(
+            f"{BASE}/bankaccounts/rules",
+            params={"organization_id": "123456", "account_id": "982000000567010"},
+        ).mock(
             return_value=httpx.Response(
                 200,
                 json={
@@ -43,6 +48,7 @@ def test_list(in_memory_storage):
         )
         result = runner.invoke(app, ["bank-rules", "list", "--query", "account_id=982000000567010"])
     assert result.exit_code == 0, result.stderr
+    assert route.called
     payload = json.loads(result.stdout)
     assert payload["data"]["items"] == [{"rule_id": "R1"}]
 

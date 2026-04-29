@@ -1,9 +1,9 @@
 """`zb bank-rules ...` — full coverage of /bankaccounts/rules.
 
-Bank rules automate categorization of imported transactions for a given bank or
-credit-card account. The list endpoint requires `account_id` as a query
+Bank rules automate categorization of imported transactions for a given bank
+or credit-card account. The list endpoint requires `account_id` as a query
 parameter; pass it via `--query account_id=...` or `--params '{"account_id":"..."}'`.
-Thin wrappers: CRUD only — Zoho exposes nothing else on this resource.
+Thin wrappers: list / create / get / update / delete.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ BASE = "/bankaccounts/rules"
 
 
 @app.command("list")
-def list_rules(
+def list_bank_rules(
     query: list[str] = typer.Option(
         None, "--query", "-q", help="Query params as key=value. May be repeated."
     ),
@@ -42,7 +42,7 @@ def list_rules(
         100, "--page-delay", help="Delay between pages in ms with --page-all."
     ),
 ):
-    """List bank rules. Requires `account_id` query param per Zoho's API."""
+    """List bank rules. Requires account_id query param."""
     q = _shared.parse_query_pairs(query, params)
     if page is not None:
         q["page"] = str(page)
@@ -61,19 +61,8 @@ def list_rules(
         )
 
 
-@app.command("get")
-def get_rule(
-    rule_id: str = typer.Argument(..., help="Zoho Books rule_id."),
-):
-    """Get a single bank rule by ID."""
-    cfg = config.load()
-    with ZohoBooksClient(cfg) as client:
-        resp = client.get(f"{BASE}/{rule_id}")
-    _shared.emit_object(resp)
-
-
 @app.command("create")
-def create_rule(
+def create_bank_rule(
     body: str = typer.Option(..., "--body", "-b", help="JSON body. IDs must be strings."),
 ):
     """Create a bank rule."""
@@ -84,8 +73,19 @@ def create_rule(
     _shared.emit_object(resp)
 
 
+@app.command("get")
+def get_bank_rule(
+    rule_id: str = typer.Argument(..., help="Zoho Books rule_id."),
+):
+    """Get a single bank rule by ID."""
+    cfg = config.load()
+    with ZohoBooksClient(cfg) as client:
+        resp = client.get(f"{BASE}/{rule_id}")
+    _shared.emit_object(resp)
+
+
 @app.command("update")
-def update_rule(
+def update_bank_rule(
     rule_id: str = typer.Argument(..., help="Zoho Books rule_id."),
     body: str = typer.Option(..., "--body", "-b", help="JSON body. IDs must be strings."),
 ):
@@ -98,7 +98,7 @@ def update_rule(
 
 
 @app.command("delete")
-def delete_rule(
+def delete_bank_rule(
     rule_id: str = typer.Argument(..., help="Zoho Books rule_id."),
 ):
     """Delete a bank rule by ID."""
