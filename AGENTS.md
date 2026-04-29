@@ -1,152 +1,178 @@
-# AGENTS.md
+# AGENTS.md — agent-developer guide
 
-This file is a concise reference for AI agents using `zoho-books-cli`. Point your agent at this file to learn the full contract without reading every `--help` page.
+This file is for AI agents (and humans) **contributing code** to the `zoho-books-cli` repo. It captures the architectural conventions, quality expectations, and workflow rules a contributor needs to ship a change without breaking the agent-facing contract.
 
-## What this CLI is for
+If you are an agent that **uses** the CLI to do work in Zoho Books — see [`skills/zoho-books/SKILL.md`](skills/zoho-books/SKILL.md). Don't conflate the two: SKILL is the agent-user contract; this file is the agent-developer contract.
 
-Agent-first full coverage of Zoho Books. Current surfaces:
+For human onboarding (install, auth, headline examples), see [`README.md`](README.md).
 
-- **`/expenses`** — list / get / create / update / delete / update-by-custom-field / comments list / receipt CRUD / attachments.
-- **`/recurringexpenses`** — CRUD + stop / resume / children / history.
-- **`/banktransactions`** — CRUD + match / unmatch / matches / exclude / restore / uncategorize + categorize (8 target types) + bulk statement import / last-imported / delete-last-imported.
-- **`/customerpayments`** — CRUD + update-by-custom-field + refunds CRUD.
-- **`/projects`** — CRUD + update-by-custom-field + mark-active / mark-inactive / clone + invoices list. Sub-collections (users, tasks, comments) stay on `zb raw`.
-- **`/contacts`** — CRUD + update-by-custom-field + search (name-contains) + mark-active / mark-inactive + comments read. Sub-collections (addresses, contact persons, 1099, portal, statements-email) stay on `zb raw`.
-- **`/chartofaccounts`** — CRUD + mark-active / mark-inactive + transactions list / delete.
-- **Binary uploads** — receipts and attachments on expenses, bills, and invoices. This remains the one thing MCP can't do cleanly.
+## Architectural conventions
 
-For anything not explicitly wrapped, use `zb raw <METHOD> <path>`.
+### One module per Zoho v3 surface
 
-### IDs must be strings
+Each top-level Zoho resource gets its own file in `src/zoho_books_cli/commands/`:
 
-Zoho Books IDs are 19-digit integers that exceed JavaScript's safe-integer limit (2^53 − 1). Agents consuming this CLI's output from a JS runtime will lose precision if an ID is represented as a JSON number. **When you construct `--body` JSON, always quote IDs as strings.** This CLI never coerces ID fields to ints, but it can't prevent an upstream JSON parser from doing so if the original payload used a numeric literal.
+- `expenses.py`, `recurring_expenses.py` — expense-side
+- `invoices.py`, `recurring_invoices.py`, `bills.py` — sales / purchase docs
+- `customer_payments.py`, `bank_transactions.py`, `bank_account_rules.py` — money movement
+- `contacts.py`, `projects.py`, `chart_of_accounts.py` — master data
+- `org.py` — local-config + API-level org management
+- `auth.py`, `raw.py` — utility commands
+
+Sub-collections (e.g. `users` / `tasks` / `comments` under projects) are nested `typer.Typer()` sub-apps registered on the parent module's `app`.
+
+### Thin-wrapper rule
+
+A wrapped command is a one-to-one map onto a Zoho v3 endpoint. It accepts:
+
+- `--body '<json>'` or `--body @file.json` for the request body (parsed via `_shared.parse_body`).
+- `--query key=value` (repeatable) and / or `--params '<JSON>'` for the query (merged via `_shared.parse_query_pairs`).
+- First-class `--page`, `--per-page`, `--page-all`, `--page-limit`, `--page-delay` on every list command.
+
+There are **no typed per-field flags**. The body is JSON the agent constructs from Zoho's API docs. This is intentional — it keeps the CLI surface stable as Zoho evolves their schema and avoids reimplementing every field as a flag.
+
+A composed command (a single CLI call that performs multiple API operations) **must** be prefixed with `+` (e.g. `zb expenses +from-receipt`). Bare command names always mean a single-endpoint thin wrapper. Agents reading the command tree depend on this signal.
+
+### Shared helpers (`commands/_shared.py`)
+
+Every wrapped command should route response emission through one of:
+
+- `emit_list_paginated(client, path, query, collection_key, ...)` — list endpoints. Handles `--page-all` NDJSON streaming and the standard `{items, page_context}` envelope shape.
+- `emit_list(resp, collection_key)` — sub-resources Zoho returns without `page_context` (e.g. `/projects/{id}/users`). No `--page-all` plumbing.
+- `emit_object(resp)` — single-record GET / PUT / POST. Strips Zoho's envelope `code`/`message` fields and emits the rest verbatim.
+- `emit_action(id_field, id_value, resp)` — verbs with no meaningful body (delete, mark-active, stop, etc.). Emits `{<id_field>, "acted": true, "response": resp}`.
+
+Do not invent new emission shapes. If a new shape is genuinely needed, add it to `_shared.py` so every module can use it.
+
+### Envelope keys are live-verified, not guessed
+
+When wrapping a new surface, **call the endpoint live** against a real Zoho org and confirm the response collection / object key (e.g. `bills` vs `bill_list`, `task` vs `tasks`). The thin-wrapper helpers depend on the right key; a wrong guess silently emits empty `items` arrays — the worst possible failure mode for agents.
+
+The module docstring should record the verified keys near the top:
+
+```python
+"""...
+
+Live-verified envelope keys against the user's Zoho org:
+- /bills                  → bills / bill
+- /bills/{id}/payments    → payments
+- /bills/{id}/comments    → comments
+"""
+```
+
+### IDs as strings, end-to-end
+
+Zoho IDs are 19 digits and exceed JavaScript's `Number.MAX_SAFE_INTEGER`. The CLI never coerces ID-shaped fields to ints. Python ints in `--body` JSON round-trip safely (Python ints are arbitrary precision); the danger is downstream JS consumers, so the **agent-user contract** demands quoting IDs as strings in body JSON. The CLI enforces nothing here — but every `create` and `update` command should have a regression test that sends a 19-digit ID literal as a JSON number and asserts the wire body preserves it bit-for-bit.
+
+### Client behavior
+
+`src/zoho_books_cli/client.py` (`ZohoBooksClient`) handles:
+
+- Region → base URL routing (`regions.py`).
+- Automatic injection of `organization_id` as a query param.
+- 401 → transparent refresh → retry-once.
+- 429 → honor `Retry-After`, exponential backoff, max 3 retries.
+- Typed exceptions (`auth.py`, `errors.py`) mapped to CLI exit codes via `cli.py:main()`.
+- `--dry-run` short-circuit: emits the would-be request as the success payload and exits before any network I/O.
+
+Don't bypass the client unless the endpoint genuinely cannot tolerate `organization_id` injection — and even then, prefer extending the client over inlining `httpx.get(...)` (the `org list` workaround in `commands/org.py:list_orgs` is a historical exception, not a precedent).
+
+### Sub-app registration
+
+Sub-app names should be human-readable, dash-separated:
+
+```python
+# in commands/<module>.py
+attachments_app = typer.Typer(...)
+app.add_typer(attachments_app, name="attachments")
+```
+
+Top-level groups go in `cli.py` alphabetically near related groups. Don't introduce a new group without a clear naming rationale (e.g., `bank-rules` is top-level rather than nested under `bank-transactions` because it's an administrative concern, not a transaction action).
+
+## Quality expectations
+
+### Tests
+
+Every wrapped command needs respx + `CliRunner` coverage:
+
+- Happy-path test for each verb, asserting both response shape and (for write verbs) the wire body.
+- ID-as-string preservation test for every `create` / `update` (send a 19-digit literal as a JSON number, assert it survives the body parse and the request content).
+- Header-contract test for every `update-by-custom-field` (asserts `X-Unique-Identifier-Key`, `X-Unique-Identifier-Value`, and `X-Upsert` are set / absent correctly).
+- For binary downloads: success path + 404 path that asserts no partial file or parent directory was created.
+- For action verbs returning `code/message` envelopes: assert the path was hit and `data.<id_field>` round-trips.
+
+The test pattern is established in `tests/test_contacts.py`; mirror it. Don't introduce new test infrastructure unless the helper hits a real expressiveness limit.
+
+`uv run pytest` must stay green at every commit.
+
+### Lint / format
+
+Ruff is the source of truth.
 
 ```bash
-# Correct — IDs are strings
-zb expenses create --body '{"account_id": "9820000005670010000", "amount": 42.50}'
-
-# Dangerous — IDs as JSON numbers may lose precision when your runtime re-parses them
-zb expenses create --body '{"account_id": 9820000005670010000, "amount": 42.50}'
+uv run ruff check src tests
+uv run ruff format --check src tests
 ```
 
-### List endpoints and pagination
+Both must pass. Pre-commit (`.pre-commit-config.yaml`) runs them on every commit; don't bypass with `--no-verify`.
 
-Every list command is single-page passthrough and exposes Zoho's `page_context` verbatim:
+### Output contract is stable
 
-```json
-{"ok": true, "data": {"items": [...], "page_context": {"page": 1, "per_page": 200, "has_more_page": true}}}
-```
+The JSON shapes documented in [`SKILL.md`](skills/zoho-books/SKILL.md) are part of the public contract. **Don't change them lightly** — agents pin against them. New fields in `data` are fine; renaming or removing existing keys is a breaking change that needs a major-version bump.
 
-If you need more rows, either loop manually on `page_context.has_more_page` incrementing `--page`, or pass `--page-all` to have the CLI stream pages as NDJSON.
+## Security expectations
 
-### Thin-wrapper convention
+- **Never log access tokens or refresh tokens.** They live in OS keyring (preferred) or `~/.config/zoho-books-cli/credentials.json` at `0600` (fallback). The auth code in `auth.py` and `storage.py` already handles this — don't print tokens for debugging without temporarily masking them.
+- **Never commit secrets.** `.env`, `credentials.json`, `.zb_*`, etc. are in `.gitignore`. `detect-secrets` runs in pre-commit (`.secrets.baseline`).
+- **Treat user-supplied paths as untrusted.** `_uploads.validate` checks size and type; don't add a code path that bypasses it for "performance."
+- **Don't make destructive Zoho calls in tests.** All HTTP calls in the suite are respx-mocked. If you need a live integration test, gate it behind an env-var opt-in and document it.
+- **`zb raw` is by design unfiltered.** Don't add server-side validation for paths/methods — it would only delay the inevitable Zoho 4xx, which the user can already read in the structured error.
 
-Every wrapped command takes either:
+For disclosure policy, see [`SECURITY.md`](SECURITY.md).
 
-- `--query key=value` (repeatable) and/or `--params '<JSON>'` (single JSON object) for URL query params. Both merge into the final query dict; `--params` wins on conflict. First-class `--page` / `--per-page` on list commands, plus opt-in `--page-all` / `--page-limit` / `--page-delay` for NDJSON auto-pagination. **and/or**
-- `--body '<json>'` or `--body @path/to/file.json` for the request body.
+## Branch / commit / review workflow
 
-No typed per-field flags. Construct the JSON body from Zoho's API docs and pass it through.
+- **Live project, live users.** No unreviewed changes land on `main`. Even solo-internal work goes through a critical senior-engineer review gate before merge.
+- One feature per branch (`feat/<surface>`); separate branches for unrelated work to keep diffs reviewable. When two changes both extend the same module file (e.g. `addresses` and `persons` on `contacts.py`), combine them in one branch to avoid merge friction — but keep each commit atomic.
+- Atomic commits within a branch: module first, sub-app registration in `cli.py` next (single line, easy to revert), tests last. Then any review-feedback commits as separate commits on top.
+- Use the `superpowers:code-reviewer` agent (or equivalent) before merging. Address every Should-fix; document the resolution of every Nit (apply or explicitly skip with reasoning).
+- Trivial changes (typo fixes, README polish, dependency bumps, lint fixes) can land on `main` directly without a branch — see the user's stated preferences in `~/.claude/projects/.../memory/feedback_pr_ceremony.md`.
 
-### Global flags (root)
+## Verification checklist before merging a branch
 
-- `--format json|yaml|table|csv` — output format. Default `json` (one line, machine-parseable). `csv` renders list responses only; on a non-list response it falls back to json with a one-line stderr note. `--pretty` is a legacy alias for `--format table`.
-- `--dry-run` — print the request that would be sent (method, url, query, body, headers, files) as the success payload, without calling Zoho. No network I/O, no token refresh. Useful for previewing destructive calls.
-- `--page-all` (on any list command) — auto-paginate; emits one NDJSON line per page. Bounded by `--page-limit` (default 10) and `--page-delay` (ms between requests, default 100).
+1. `uv run pytest` — green.
+2. `uv run ruff check src tests` and `uv run ruff format --check src tests` — clean.
+3. New commands listed in `zb --list-commands | jq '.data.commands[].name'` — confirm they appear.
+4. At least one `--dry-run` smoke per branch: `uv run zb --dry-run <new-command> ...` — verify method/url/body shape match the documented Zoho endpoint.
+5. Live read against the user's real org (read-only) for any new GET endpoint — confirms envelope keys.
+6. Code review pass with applied fixes.
+7. README / SKILL / AGENTS docs updated if the public surface changed.
 
-### Command naming conventions
+## File map
 
-- Commands named with a leading `+` (e.g. a future `zb expenses +from-receipt`) are **composed helpers**: a single CLI call that performs multiple API operations. Commands without the `+` prefix are thin one-to-one wrappers over a single Zoho endpoint. Use this signal to know whether you're invoking atomic API surface or a multi-step workflow.
+| File | What it owns |
+| ---- | ------------ |
+| `src/zoho_books_cli/cli.py` | Root Typer app, sub-app registration, `--list-commands`, error contract glue. |
+| `src/zoho_books_cli/client.py` | HTTPX wrapper; auth refresh; 429 handling; `--dry-run` short-circuit. |
+| `src/zoho_books_cli/auth.py`, `storage.py`, `config.py` | OAuth refresh and keyring/file persistence. |
+| `src/zoho_books_cli/regions.py` | Region → base URL mapping. |
+| `src/zoho_books_cli/output.py` | JSON / YAML / table / CSV emission; `emit_success`, `emit_error`. |
+| `src/zoho_books_cli/errors.py` | Typed exceptions + exit codes. |
+| `src/zoho_books_cli/_uploads.py` | File-type and size validation for multipart uploads. |
+| `src/zoho_books_cli/commands/_shared.py` | Helpers used by every wrapped module. |
+| `src/zoho_books_cli/commands/<module>.py` | One module per Zoho resource. |
+| `tests/conftest.py` | `in_memory_storage` and `fake_cfg` fixtures. |
+| `tests/test_<module>.py` | One test file per command module. |
+| `skills/zoho-books/SKILL.md` | Agent-user contract — keep in sync with shipped commands. |
+| `README.md` | Human onboarding. |
+| `pyproject.toml` | Package metadata, ruff config, pytest config. Bump `version` here on a release. |
 
-## Invocation
+## When in doubt
 
-Binary name: `zb` (primary) or `zoho-books`.
+Read three things in order:
 
-```bash
-zb <group> <subcommand> [args...] [--format json|yaml|table|csv] [--dry-run]
-```
+1. The two or three most-similar existing modules in `commands/` — pattern fidelity wins.
+2. `commands/_shared.py` — every wrapped command should use these helpers.
+3. The corresponding `tests/test_<module>.py` — that's the executable spec for the agent-user contract.
 
-Run `zb --list-commands` to get the full command tree as JSON:
-
-```json
-{
-  "ok": true,
-  "data": {
-    "commands": [
-      {"name": "auth login", "args": ["--client-id", "--client-secret"], "summary": "..."},
-      {"name": "expenses receipt upload", "args": ["expense_id", "file"], "summary": "..."}
-      // ...
-    ]
-  }
-}
-```
-
-## Output contract (stable)
-
-**Success** → stdout, exit 0:
-
-```json
-{"ok": true, "data": {...}}
-```
-
-**Error** → stderr, non-zero exit:
-
-```json
-{"ok": false, "error": {"code": "<code>", "message": "<human>", "details": {...}}}
-```
-
-`error.code` values (stable):
-
-| Code | Exit | Meaning |
-| ---- | ---- | ------- |
-| `auth_required` | 2 | No credentials stored. Run `zb auth login`. |
-| `auth_expired`  | 2 | Refresh failed. Re-login. |
-| `auth_failed`   | 2 | Login/refresh exchange rejected by Zoho. |
-| `validation`    | 3 | Bad arguments, missing file, file too large, unsupported type. |
-| `not_found`     | 4 | Zoho returned 404. |
-| `api_error`     | 4 | Any other 4xx from Zoho. `details.http_status` and `details.zoho_code` included. |
-| `rate_limited`  | 5 | 429. `details.retry_after_s` included. |
-| `network`       | 6 | DNS/connect/timeout. |
-| `unknown`       | 1 | Anything else. |
-
-## Core commands
-
-### Upload a receipt (single image/PDF per expense; replaces existing)
-
-```bash
-zb expenses receipt upload <expense_id> <file>
-```
-
-`<file>`: PDF, JPG, JPEG, PNG, or GIF. Max 10 MB.
-
-### Add attachments (multiple files; supplementary docs)
-
-```bash
-zb expenses attachments add <expense_id> <file> [<file>...]
-zb bills attachments add    <bill_id>    <file> [<file>...]
-zb invoices attachments add <invoice_id> <file> [<file>...]
-```
-
-Batch-upload is per-file: one failure does **not** abort the rest. The JSON result is an array of per-file outcomes, each with `{"file", "ok", "attachment_id"|"error"}`.
-
-### Raw endpoint access
-
-```bash
-zb raw <METHOD> <path> [--query k=v ...] [--body @file.json | --body '<json>'] [--file field=path ...]
-```
-
-Use this for any Zoho Books v3 endpoint not explicitly wrapped.
-
-## Preconditions to check before using this CLI
-
-1. `zb auth status` returns `{"ok": true, "data": {"authenticated": true}}`.
-2. `zb org current` returns a non-null `org_id`.
-3. File to upload exists, is readable, is ≤10 MB, and is an allowed type.
-
-If any precondition fails, surface the structured error to the user rather than retrying blindly.
-
-## Idempotency notes
-
-- `receipt upload` **replaces** any existing receipt on the expense.
-- `attachments add` **appends** — calling twice with the same file creates two attachments.
-- `attachments delete` and `receipt delete` are idempotent; deleting an already-deleted item returns `not_found`.
+If those don't tell you what to do, ask before inventing a new pattern.
