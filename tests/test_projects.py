@@ -197,3 +197,215 @@ def test_invoices_list(in_memory_storage):
     assert result.exit_code == 0, result.stderr
     payload = json.loads(result.stdout)
     assert payload["data"]["items"] == [{"invoice_id": "I1"}]
+
+
+# --- users sub-app -----------------------------------------------------------
+
+
+def test_users_list(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        mock.get(f"{BASE}/projects/P1/users").mock(
+            return_value=httpx.Response(200, json={"users": [{"user_id": "U1"}]})
+        )
+        result = runner.invoke(app, ["projects", "users", "list", "P1"])
+    assert result.exit_code == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["data"]["items"] == [{"user_id": "U1"}]
+
+
+def test_users_get(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        mock.get(f"{BASE}/projects/P1/users/U1").mock(
+            return_value=httpx.Response(200, json={"user": {"user_id": "U1"}})
+        )
+        result = runner.invoke(app, ["projects", "users", "get", "P1", "U1"])
+    assert result.exit_code == 0, result.stderr
+
+
+def test_users_add_preserves_large_ids(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    big = 9820000005670010000
+    with respx.mock() as mock:
+        route = mock.post(f"{BASE}/projects/P1/users").mock(
+            return_value=httpx.Response(201, json={"users": []})
+        )
+        result = runner.invoke(
+            app,
+            [
+                "projects",
+                "users",
+                "add",
+                "P1",
+                "--body",
+                f'{{"users":[{{"user_id":{big},"user_role":"staff"}}]}}',
+            ],
+        )
+    assert result.exit_code == 0, result.stderr
+    outgoing = json.loads(route.calls[0].request.content)
+    assert outgoing["users"][0]["user_id"] == big
+
+
+def test_users_invite(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.post(f"{BASE}/projects/P1/users/invite").mock(
+            return_value=httpx.Response(200, json={"code": 0, "message": "invited"})
+        )
+        result = runner.invoke(
+            app,
+            ["projects", "users", "invite", "P1", "--body", '{"email":"a@b.com"}'],
+        )
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+
+
+def test_users_update(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.put(f"{BASE}/projects/P1/users/U1").mock(
+            return_value=httpx.Response(200, json={"user": {}})
+        )
+        result = runner.invoke(
+            app,
+            ["projects", "users", "update", "P1", "U1", "--body", '{"user_role":"manager"}'],
+        )
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+
+
+def test_users_delete(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.delete(f"{BASE}/projects/P1/users/U1").mock(
+            return_value=httpx.Response(200, json={"code": 0, "message": "deleted"})
+        )
+        result = runner.invoke(app, ["projects", "users", "delete", "P1", "U1"])
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+    payload = json.loads(result.stdout)
+    assert payload["data"]["user_id"] == "U1"
+
+
+# --- tasks sub-app -----------------------------------------------------------
+
+
+def test_tasks_list_singular_envelope_key(in_memory_storage):
+    """Zoho returns the task list under the singular `task` key — confirm extraction."""
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        mock.get(f"{BASE}/projects/P1/tasks").mock(
+            return_value=httpx.Response(200, json={"task": [{"task_id": "T1"}], "page_context": {}})
+        )
+        result = runner.invoke(app, ["projects", "tasks", "list", "P1"])
+    assert result.exit_code == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["data"]["items"] == [{"task_id": "T1"}]
+
+
+def test_tasks_get(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        mock.get(f"{BASE}/projects/P1/tasks/T1").mock(
+            return_value=httpx.Response(200, json={"task": {"task_id": "T1"}})
+        )
+        result = runner.invoke(app, ["projects", "tasks", "get", "P1", "T1"])
+    assert result.exit_code == 0, result.stderr
+
+
+def test_tasks_add(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.post(f"{BASE}/projects/P1/tasks").mock(
+            return_value=httpx.Response(201, json={"task": {"task_id": "T2"}})
+        )
+        result = runner.invoke(
+            app,
+            ["projects", "tasks", "add", "P1", "--body", '{"task_name":"Spec"}'],
+        )
+    assert result.exit_code == 0, result.stderr
+    assert json.loads(route.calls[0].request.content) == {"task_name": "Spec"}
+
+
+def test_tasks_update(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.put(f"{BASE}/projects/P1/tasks/T1").mock(
+            return_value=httpx.Response(200, json={"task": {}})
+        )
+        result = runner.invoke(
+            app,
+            ["projects", "tasks", "update", "P1", "T1", "--body", '{"task_name":"Done"}'],
+        )
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+
+
+def test_tasks_delete(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.delete(f"{BASE}/projects/P1/tasks/T1").mock(
+            return_value=httpx.Response(200, json={"code": 0, "message": "deleted"})
+        )
+        result = runner.invoke(app, ["projects", "tasks", "delete", "P1", "T1"])
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+
+
+# --- comments sub-app --------------------------------------------------------
+
+
+def test_p_comments_list(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        mock.get(f"{BASE}/projects/P1/comments").mock(
+            return_value=httpx.Response(
+                200, json={"comments": [{"comment_id": "K1"}], "page_context": {}}
+            )
+        )
+        result = runner.invoke(app, ["projects", "comments", "list", "P1"])
+    assert result.exit_code == 0, result.stderr
+    payload = json.loads(result.stdout)
+    assert payload["data"]["items"] == [{"comment_id": "K1"}]
+
+
+def test_p_comments_add(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.post(f"{BASE}/projects/P1/comments").mock(
+            return_value=httpx.Response(201, json={"comment": {"comment_id": "K2"}})
+        )
+        result = runner.invoke(
+            app,
+            ["projects", "comments", "add", "P1", "--body", '{"description":"Note"}'],
+        )
+    assert result.exit_code == 0, result.stderr
+    assert json.loads(route.calls[0].request.content) == {"description": "Note"}
+
+
+def test_p_comments_delete(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    with respx.mock() as mock:
+        route = mock.delete(f"{BASE}/projects/P1/comments/K1").mock(
+            return_value=httpx.Response(200, json={"code": 0, "message": "deleted"})
+        )
+        result = runner.invoke(app, ["projects", "comments", "delete", "P1", "K1"])
+    assert result.exit_code == 0, result.stderr
+    assert route.called
+    payload = json.loads(result.stdout)
+    assert payload["data"]["comment_id"] == "K1"
