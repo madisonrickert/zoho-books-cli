@@ -1,6 +1,6 @@
 # zoho-books-cli
 
-**An agent-first command-line interface for [Zoho Books](https://www.zoho.com/books/) — JSON-on-stdout, structured errors, native multipart for binary uploads, and 19-digit IDs preserved as strings end-to-end.**
+**An agent-first command-line interface for [Zoho Books](https://www.zoho.com/books/)**
 
 [![CI](https://github.com/madisonrickert/zoho-books-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/madisonrickert/zoho-books-cli/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
