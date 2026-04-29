@@ -28,7 +28,7 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 addresses_app = typer.Typer(
-    help="Additional addresses on a contact (list / add / update / delete + mark-primary).",
+    help="Additional addresses on a contact (list / add / update / delete).",
     no_args_is_help=True,
 )
 persons_app = typer.Typer(
@@ -300,11 +300,9 @@ def addresses_delete(
 
 @persons_app.command("list")
 def persons_list(
+    contact_id: str = typer.Argument(..., help="Zoho Books contact_id (required by Zoho)."),
     query: list[str] = typer.Option(
-        None,
-        "--query",
-        "-q",
-        help=("Query params as key=value (typically `contact_id=<id>` to scope). May be repeated."),
+        None, "--query", "-q", help="Extra query params as key=value. May be repeated."
     ),
     params: str = typer.Option(
         None,
@@ -321,8 +319,14 @@ def persons_list(
         100, "--page-delay", help="Delay between pages in ms with --page-all."
     ),
 ):
-    """List contact persons. Supply contact_id via --query to scope to one contact."""
+    """List contact persons attached to a contact.
+
+    Zoho's /contacts/contactpersons endpoint requires a contact_id filter; the
+    CLI accepts it as a positional argument and injects it into the query so
+    agents can't accidentally drop it.
+    """
     q = _shared.parse_query_pairs(query, params)
+    q["contact_id"] = contact_id
     if page is not None:
         q["page"] = str(page)
     if per_page is not None:

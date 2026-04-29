@@ -189,11 +189,13 @@ def test_addresses_list(in_memory_storage):
     _setup_auth(in_memory_storage)
     runner = CliRunner()
     with respx.mock() as mock:
-        mock.get(f"{BASE}/contacts/C1/address").mock(
-            return_value=httpx.Response(200, json={"addresses": [{"address_id": "A1"}]})
-        )
+        route = mock.get(
+            f"{BASE}/contacts/C1/address",
+            params={"organization_id": "123456"},
+        ).mock(return_value=httpx.Response(200, json={"addresses": [{"address_id": "A1"}]}))
         result = runner.invoke(app, ["contacts", "addresses", "list", "C1"])
     assert result.exit_code == 0, result.stderr
+    assert route.called
     payload = json.loads(result.stdout)
     assert payload["data"]["items"] == [{"address_id": "A1"}]
 
@@ -254,7 +256,7 @@ def test_addresses_delete(in_memory_storage):
 # --- contact persons sub-app -------------------------------------------------
 
 
-def test_persons_list_with_contact_id(in_memory_storage):
+def test_persons_list_requires_contact_id_positional(in_memory_storage):
     _setup_auth(in_memory_storage)
     runner = CliRunner()
     with respx.mock() as mock:
@@ -266,11 +268,19 @@ def test_persons_list_with_contact_id(in_memory_storage):
                 200, json={"contact_persons": [{"contact_person_id": "P1"}], "page_context": {}}
             )
         )
-        result = runner.invoke(app, ["contacts", "persons", "list", "--query", "contact_id=C1"])
+        result = runner.invoke(app, ["contacts", "persons", "list", "C1"])
     assert result.exit_code == 0, result.stderr
     assert route.called
     payload = json.loads(result.stdout)
     assert payload["data"]["items"] == [{"contact_person_id": "P1"}]
+
+
+def test_persons_list_missing_contact_id_errors(in_memory_storage):
+    _setup_auth(in_memory_storage)
+    runner = CliRunner()
+    # No contact_id → typer rejects before any HTTP call.
+    result = runner.invoke(app, ["contacts", "persons", "list"])
+    assert result.exit_code != 0
 
 
 def test_persons_get(in_memory_storage):
