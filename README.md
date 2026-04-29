@@ -135,7 +135,7 @@ zb expenses update EXP1 --body @updates.json
 zb expenses delete EXP1
 ```
 
-**IDs must be strings in `--body` JSON** — Zoho IDs exceed JavaScript's safe-integer limit and will lose precision if serialized as numbers. See [`AGENTS.md`](AGENTS.md#ids-must-be-strings).
+**IDs must be strings in `--body` JSON** — Zoho IDs exceed JavaScript's safe-integer limit and will lose precision if serialized as numbers. See the [agent-user contract in `SKILL.md`](skills/zoho-books/SKILL.md#ids-must-be-strings-in---body-json) for the full rationale.
 
 ### Categorize a bank transaction
 
@@ -189,7 +189,7 @@ zb invoices mark-sent|mark-void|mark-draft
 zb invoices write-off|cancel-write-off
 zb invoices email
 zb invoices reminders send
-zb invoices payments list
+zb invoices payments list                # read-only; record payments via `customer-payments create`
 zb invoices credits list|apply|delete
 zb invoices comments list|add|delete
 zb invoices documents get|download|delete
