@@ -27,6 +27,7 @@ from zoho_books_cli.commands import (
     org,
     projects,
     recurring_expenses,
+    recurring_invoices,
 )
 from zoho_books_cli.commands.raw import raw as raw_command
 from zoho_books_cli.errors import EXIT_UNKNOWN, NetworkError, ZohoCLIError
@@ -48,6 +49,7 @@ app.add_typer(auth.app, name="auth")
 app.add_typer(org.app, name="org")
 app.add_typer(expenses.app, name="expenses")
 app.add_typer(recurring_expenses.app, name="recurring-expenses")
+app.add_typer(recurring_invoices.app, name="recurring-invoices")
 app.add_typer(bank_transactions.app, name="bank-transactions")
 app.add_typer(bank_account_rules.app, name="bank-rules")
 app.add_typer(bills.app, name="bills")
