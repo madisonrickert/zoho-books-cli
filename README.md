@@ -13,7 +13,7 @@ Designed for AI agents and shell-scripted automation — Claude, ChatGPT, cron j
 - **Response IDs flow into JavaScript.** Zoho's 19-digit IDs exceed `Number.MAX_SAFE_INTEGER`. `zb` keeps every ID as a string end-to-end so JS consumers don't silently corrupt them.
 - **You need first-class verbs for state and two-step workflows.** `mark-sent` / `mark-void` / `write-off` on invoices; `mark-void` / `mark-open` / `email` on bills; `apply` / `unapply` for credits and bill payments; `stop` / `resume` on recurring records; `match` / `categorize` / `exclude` / `restore` on bank transactions; `add` / `invite` / `update` for project users; addresses and contact persons; bank account rules. (Coverage is broad but not exhaustive — see "Not yet wrapped" below for what still routes through `zb raw`.)
 - **You want pipelines, not prose.** One-line JSON by default, stable exit codes, opt-in CSV / YAML / NDJSON streaming (`--page-all`), `--dry-run` previews, `--params '{JSON}'` for agent-friendly query construction.
-- **You want a slim per-turn token footprint.** `zb` reached through the agent's `Bash` tool adds ~4.5K tokens of catalog + skill; the captured Zoho MCP catalog (104 tools) runs ~82K. Both surfaces are tunable — the methodology, full data tables, caveats, and reproduction recipe live in [`bench/`](bench/), so you can measure your own configuration.
+- **You want a slim per-turn token footprint.** In our [published eval](bench/), `zb`'s tool surface came in ~94% smaller than the captured Zoho MCP catalog. Both surfaces are tunable, so audit the methodology and re-run against your own configuration.
 
 Anything not yet wrapped is reachable via `zb raw <METHOD> <path>`, so the CLI never blocks an agent mid-workflow.
 
