@@ -13,6 +13,7 @@ Designed for AI agents and shell-scripted automation — Claude, ChatGPT, cron j
 - **Response IDs flow into JavaScript.** Zoho's 19-digit IDs exceed `Number.MAX_SAFE_INTEGER`. `zb` keeps every ID as a string end-to-end so JS consumers don't silently corrupt them.
 - **You need first-class verbs for state and two-step workflows.** `mark-sent` / `mark-void` / `write-off` on invoices; `mark-void` / `mark-open` / `email` on bills; `apply` / `unapply` for credits and bill payments; `stop` / `resume` on recurring records; `match` / `categorize` / `exclude` / `restore` on bank transactions; `add` / `invite` / `update` for project users; addresses and contact persons; bank account rules. (Coverage is broad but not exhaustive — see "Not yet wrapped" below for what still routes through `zb raw`.)
 - **You want pipelines, not prose.** One-line JSON by default, stable exit codes, opt-in CSV / YAML / NDJSON streaming (`--page-all`), `--dry-run` previews, `--params '{JSON}'` for agent-friendly query construction.
+- **You want a slim per-turn token footprint.** `zb` reached through the agent's `Bash` tool adds ~4.5K tokens of catalog + skill; the captured Zoho MCP catalog (104 tools) runs ~82K. Both surfaces are tunable — the methodology, full data tables, caveats, and reproduction recipe live in [`bench/`](bench/), so you can measure your own configuration.
 
 Anything not yet wrapped is reachable via `zb raw <METHOD> <path>`, so the CLI never blocks an agent mid-workflow.
 
@@ -249,20 +250,6 @@ The CLI wraps a broad slice of the Zoho Books v3 API but does **not** cover all 
 
 If one of these is blocking you, open an issue or wrap it locally — `commands/_shared.py` plus the existing module patterns make it ~50 lines per CRUD surface. In the meantime: `zb raw <METHOD> <path>` reaches anything authenticated.
 
-## Token cost vs. Zoho MCP
-
-The [`bench/`](bench/) directory ships a reproducible harness that measures per-task token cost across `zb` and the Zoho Books MCP server on a fixed corpus of read-only tasks. Both surfaces are tunable — the Zoho MCP can be configured with more or fewer tools, and `zb`'s wrapped surface is growing — so the published numbers are a snapshot of one configuration, not a universal claim about MCP-vs-CLI. Run the harness against your own setup if you want numbers for *your* mix.
-
-Full methodology, data tables, caveats, and the reproduction recipe live in [`bench/README.md`](bench/README.md).
-
 ## Contributing
 
-If you're an AI agent or human contributing code, start with [`AGENTS.md`](AGENTS.md) — it captures the architectural conventions, quality expectations, and review workflow.
-
-## Security
-
-Never commit secrets. See [`SECURITY.md`](SECURITY.md) for disclosure policy and [`.env.example`](.env.example) for configuration.
-
-## License
-
-MIT — see [`LICENSE`](LICENSE).
+Architectural conventions, the test contract, and the review workflow live in [`AGENTS.md`](AGENTS.md) — start there.
