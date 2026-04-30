@@ -1,0 +1,23 @@
+# scripts/blocked_identifiers.txt — local-only, gitignored.
+#
+# One pattern per line. Lines starting with `#` are comments. Two forms:
+#
+#   literal:<exact string>
+#       Exact substring match. Use for: a specific account ID, a private
+#       org name, a specific email, anything that is a fixed value.
+#
+#   regex:<python regex>
+#       Pattern match. Use for: known ID prefixes / formats. The check
+#       runs `re.search` against each line of every staged file.
+#
+# Both forms reject the commit if matched. Add additional `literal:` /
+# `regex:` lines as needed.
+#
+# Copy this file to `blocked_identifiers.txt` and fill in your own
+# values. The check script silently no-ops if the file is absent.
+
+# Example — replace with your real identifiers:
+#
+# literal:1234567890
+# literal:My Private Org Name
+# regex:\bACME[0-9]{12}\b

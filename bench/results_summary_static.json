@@ -1,0 +1,134 @@
+{
+  "models": [
+    "claude-sonnet-4-6",
+    "claude-haiku-4-5"
+  ],
+  "cells": [
+    {
+      "component": "tool_catalog",
+      "surface": "zb",
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 601,
+      "notes": "Bash tool only; zb is reached via Bash."
+    },
+    {
+      "component": "tool_catalog",
+      "surface": "mcp_eager",
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 82354,
+      "notes": "all 104 Zoho MCP tools eagerly loaded."
+    },
+    {
+      "component": "tool_catalog",
+      "surface": "mcp_deferred",
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 6208,
+      "notes": "name+description only for 104 tools (deferred-load approximation); schemas fetched on demand at additional per-use cost."
+    },
+    {
+      "component": "skill_loading",
+      "surface": "zb",
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 3892,
+      "notes": "SKILL.md = 13148 chars."
+    },
+    {
+      "component": "skill_loading",
+      "surface": "mcp_eager",
+      "model": "claude-sonnet-4-6",
+      "input_tokens": -1,
+      "notes": "not yet captured; see capture_schemas.py TODO for instructions block."
+    },
+    {
+      "component": "payload_org_get",
+      "surface": "zb",
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 818,
+      "notes": "compact JSON, 2511 chars."
+    },
+    {
+      "component": "payload_org_get",
+      "surface": "mcp",
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 819,
+      "notes": "compact JSON, 2521 chars."
+    },
+    {
+      "component": "payload_contacts_list",
+      "surface": "zb",
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 2185,
+      "notes": "compact JSON, 6821 chars."
+    },
+    {
+      "component": "payload_contacts_list",
+      "surface": "mcp",
+      "model": "claude-sonnet-4-6",
+      "input_tokens": 2186,
+      "notes": "compact JSON, 6834 chars."
+    },
+    {
+      "component": "tool_catalog",
+      "surface": "zb",
+      "model": "claude-haiku-4-5",
+      "input_tokens": 600,
+      "notes": "Bash tool only; zb is reached via Bash."
+    },
+    {
+      "component": "tool_catalog",
+      "surface": "mcp_eager",
+      "model": "claude-haiku-4-5",
+      "input_tokens": 82353,
+      "notes": "all 104 Zoho MCP tools eagerly loaded."
+    },
+    {
+      "component": "tool_catalog",
+      "surface": "mcp_deferred",
+      "model": "claude-haiku-4-5",
+      "input_tokens": 6207,
+      "notes": "name+description only for 104 tools (deferred-load approximation); schemas fetched on demand at additional per-use cost."
+    },
+    {
+      "component": "skill_loading",
+      "surface": "zb",
+      "model": "claude-haiku-4-5",
+      "input_tokens": 3891,
+      "notes": "SKILL.md = 13148 chars."
+    },
+    {
+      "component": "skill_loading",
+      "surface": "mcp_eager",
+      "model": "claude-haiku-4-5",
+      "input_tokens": -1,
+      "notes": "not yet captured; see capture_schemas.py TODO for instructions block."
+    },
+    {
+      "component": "payload_org_get",
+      "surface": "zb",
+      "model": "claude-haiku-4-5",
+      "input_tokens": 818,
+      "notes": "compact JSON, 2511 chars."
+    },
+    {
+      "component": "payload_org_get",
+      "surface": "mcp",
+      "model": "claude-haiku-4-5",
+      "input_tokens": 819,
+      "notes": "compact JSON, 2521 chars."
+    },
+    {
+      "component": "payload_contacts_list",
+      "surface": "zb",
+      "model": "claude-haiku-4-5",
+      "input_tokens": 2185,
+      "notes": "compact JSON, 6821 chars."
+    },
+    {
+      "component": "payload_contacts_list",
+      "surface": "mcp",
+      "model": "claude-haiku-4-5",
+      "input_tokens": 2186,
+      "notes": "compact JSON, 6834 chars."
+    }
+  ]
+}

@@ -34,3 +34,11 @@ build/
 
 # Project-specific
 .zoho-books-cli/
+
+# Bench — raw runs contain live responses; only summary is committed
+bench/results/
+bench/.cache/
+
+# Per-developer pattern list for the no-personal-data pre-commit check.
+# Public template lives at scripts/blocked_identifiers.example.txt.
+scripts/blocked_identifiers.txt

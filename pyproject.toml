@@ -43,6 +43,13 @@ dev = [
   "detect-secrets>=1.5",
   "rich>=13",
 ]
+# Token-cost benchmark deps (zb CLI vs Zoho Books MCP). See bench/README.md.
+# The live arm shells out to `claude -p` (subscription auth); only the
+# static arm hits the metered API directly via `anthropic.count_tokens`.
+bench = [
+  "anthropic>=0.40",
+  "mcp>=1.2",
+]
 
 [project.urls]
 Homepage = "https://github.com/madisonrickert/zoho-books-cli"

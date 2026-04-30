@@ -23,3 +23,13 @@ repos:
       - id: check-toml
       - id: end-of-file-fixer
       - id: trailing-whitespace
+
+  - repo: local
+    hooks:
+      - id: no-personal-data
+        name: no-personal-data
+        entry: scripts/check_no_personal_data.py
+        language: system
+        # Path-based match so .jsonl / .ndjson are covered (pre-commit's
+        # `identify` library does not classify them as a known type).
+        files: '\.(py|json|jsonl|ndjson|yaml|yml|md|toml|txt|cfg|ini)$'

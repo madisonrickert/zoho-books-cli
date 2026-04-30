@@ -249,6 +249,12 @@ The CLI wraps a broad slice of the Zoho Books v3 API but does **not** cover all 
 
 If one of these is blocking you, open an issue or wrap it locally — `commands/_shared.py` plus the existing module patterns make it ~50 lines per CRUD surface. In the meantime: `zb raw <METHOD> <path>` reaches anything authenticated.
 
+## Token cost vs. Zoho MCP
+
+The [`bench/`](bench/) directory ships a reproducible harness that measures per-task token cost across `zb` and the Zoho Books MCP server on a fixed corpus of read-only tasks. Both surfaces are tunable — the Zoho MCP can be configured with more or fewer tools, and `zb`'s wrapped surface is growing — so the published numbers are a snapshot of one configuration, not a universal claim about MCP-vs-CLI. Run the harness against your own setup if you want numbers for *your* mix.
+
+Full methodology, data tables, caveats, and the reproduction recipe live in [`bench/README.md`](bench/README.md).
+
 ## Contributing
 
 If you're an AI agent or human contributing code, start with [`AGENTS.md`](AGENTS.md) — it captures the architectural conventions, quality expectations, and review workflow.
