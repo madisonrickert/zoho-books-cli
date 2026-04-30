@@ -249,7 +249,3 @@ The CLI wraps a broad slice of the Zoho Books v3 API but does **not** cover all 
 - Recurring expenses / invoices: anything beyond what's listed in the command groups above
 
 If one of these is blocking you, open an issue or wrap it locally — `commands/_shared.py` plus the existing module patterns make it ~50 lines per CRUD surface. In the meantime: `zb raw <METHOD> <path>` reaches anything authenticated.
-
-## Contributing
-
-Architectural conventions, the test contract, and the review workflow live in [`AGENTS.md`](AGENTS.md) — start there.
