@@ -72,18 +72,18 @@ headless (`claude -p`), `claude-haiku-4-5` + `claude-sonnet-4-6`, both arms
 with `--strict-mcp-config --disable-slash-commands` for isolation. Cost is the
 model-reported `total_cost_usd`; ratio compares cell means:
 
-| Task | Model | zb $ | MCP $ | MCP / zb cost | MCP / zb turns |
-| --- | --- | ---: | ---: | ---: | ---: |
-| T1 — org get | Haiku | 0.036 | 0.062 | **1.71×** | 0.59× |
-| T1 | Sonnet | 0.070 | 0.063 | 0.90× | 1.07× |
-| T2 — contacts list | Haiku | 0.058 | 0.075 | **1.29×** | 0.64× |
-| T2 | Sonnet | 0.088 | 0.101 | 1.15× | 2.33× |
-| T3 — multi-step | Haiku | 0.059 | 0.063 | 1.06× | 0.53× |
-| T3 | Sonnet | 0.069 | 0.122 | **1.77×** | 2.71× |
-| T4 — invoices list | Haiku | 0.052 | 0.054 | 1.04× | 0.61× |
-| T4 | Sonnet | 0.085 | 0.142 | **1.67×** | 2.93× |
-| T5 — dry-run | Haiku | 0.026 | 0.043 | **1.67×** | 1.71× |
-| T5 | Sonnet | 0.083 | 0.098 | 1.18× | 1.22× |
+| Task | Model | zb $ | MCP $ | zb turns | MCP turns | MCP / zb cost |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| T1 — org get | Haiku | 0.036 | 0.062 | 3.4 | 2.0 | **1.71×** |
+| T1 | Sonnet | 0.070 | 0.063 | 3.0 | 3.2 | 0.90× |
+| T2 — contacts list | Haiku | 0.058 | 0.075 | 8.8 | 5.6 | **1.29×** |
+| T2 | Sonnet | 0.088 | 0.101 | 2.4 | 5.6 | 1.15× |
+| T3 — multi-step | Haiku | 0.059 | 0.063 | 8.0 | 4.2 | 1.06× |
+| T3 | Sonnet | 0.069 | 0.122 | 2.8 | 7.6 | **1.77×** |
+| T4 — invoices list | Haiku | 0.052 | 0.054 | 6.6 | 4.0 | 1.04× |
+| T4 | Sonnet | 0.085 | 0.142 | 2.8 | 8.2 | **1.67×** |
+| T5 — dry-run | Haiku | 0.026 | 0.043 | 1.4 | 2.4 | **1.67×** |
+| T5 | Sonnet | 0.083 | 0.098 | 3.6 | 4.4 | 1.18× |
 
 For this corpus / configuration / `n=5`: MCP came in higher than zb in 9 of
 the 10 cells, geometric-mean cost ratio 1.32. At a different MCP tool count,
