@@ -197,7 +197,7 @@ Exit codes:
 
 ## Agent skill
 
-The repo ships a Claude Code skill at [`skills/zoho-books/SKILL.md`](skills/zoho-books/SKILL.md). It teaches an agent when to reach for this CLI (vs. the Zoho Books MCP), how to check preconditions, how to parse the JSON contract, and how to handle per-error-code behaviors.
+The repo ships a Claude Code skill at [`skills/zoho-books/SKILL.md`](skills/zoho-books/SKILL.md). It teaches an agent when to reach for this CLI (vs. Zoho MCP), how to check preconditions, how to parse the JSON contract, and how to handle per-error-code behaviors.
 
 ### Install the skill
 

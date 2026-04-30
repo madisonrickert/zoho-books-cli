@@ -1,4 +1,4 @@
-"""Static token-cost measurement (Arm A) — Zoho Books MCP vs ``zb`` CLI.
+"""Static token-cost measurement (Arm A) — Zoho MCP vs ``zb`` CLI.
 
 Counts tokens against Anthropic's `count_tokens` endpoint (free per the
 [docs](https://docs.claude.com/en/docs/build-with-claude/token-counting))

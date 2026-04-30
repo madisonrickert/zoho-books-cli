@@ -1,4 +1,4 @@
-"""Snapshot the Zoho Books MCP server's tool schemas to a fixture file.
+"""Snapshot the Zoho MCP server's tool schemas to a fixture file.
 
 Connects to the Zoho MCP HTTP endpoint, calls ``list_tools``, and writes the
 resulting schemas to ``bench/fixtures/zoho_mcp_schemas.json``. **Schemas only

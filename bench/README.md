@@ -5,8 +5,8 @@ through three surfaces:
 
 - **`zb`** — the CLI in this repo, reached via the agent's `Bash` tool with
   `SKILL.md` appended to the system prompt.
-- **`mcp_eager`** — the official Zoho Books MCP server with all tools enabled.
-- **`mcp_deferred`** — the same MCP server with Claude Code's [Tool Search]
+- **`mcp_eager`** — Zoho's official Zoho MCP product (the captured Zoho Books toolset, all tools loaded eagerly).
+- **`mcp_deferred`** — the same Zoho MCP server with Claude Code's [Tool Search]
   on (default behavior in recent versions): tool *names* load at session
   start, schemas fetch on demand.
 
@@ -27,9 +27,8 @@ surfaces:
 
 The captured snapshot covers 104 Zoho MCP tools — chosen by the user
 running the eval to roughly match `zb`'s wrapped surface so the comparison
-isn't between a maximalist MCP and a minimalist CLI. **Treat the numbers as
-data, not advertising.** A different user's MCP, with a different tool
-selection, will produce different ratios.
+isn't between a maximalist MCP and a minimalist CLI. A different user's MCP,
+with a different tool selection, will produce different ratios.
 
 What the eval *can* tell you, treating these as data points:
 

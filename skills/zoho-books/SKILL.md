@@ -1,6 +1,6 @@
 ---
 name: zoho-books
-description: Use for any Zoho Books operation — listing/creating/updating/deleting expenses, recurring expenses/invoices, bank transactions, customer payments, projects (and project users/tasks/comments), contacts (and contact persons/addresses), invoices (incl. email/templates/credits/payments), bills (incl. payments/comments), bank account rules, organizations, or chart-of-accounts entries; categorizing/matching bank transactions; issuing refunds on customer payments; uploading or downloading local receipts and attachments; sending invoices/reminders by email; applying credits or unapplying payments. Triggers on phrases like "create an expense in Zoho", "categorize this bank transaction", "find the contact named X", "refund this payment", "mark this project active", "send the invoice to the customer", "attach this receipt", "download the bill PDF", or any mention of a Zoho Books record ID combined with a CRUD or file operation. Prefer this CLI over the Zoho Books MCP when the user will consume IDs in JavaScript (MCP loses precision on 19-digit IDs) or when binary uploads/downloads are involved.
+description: Use for any Zoho Books operation — listing/creating/updating/deleting expenses, recurring expenses/invoices, bank transactions, customer payments, projects (and project users/tasks/comments), contacts (and contact persons/addresses), invoices (incl. email/templates/credits/payments), bills (incl. payments/comments), bank account rules, organizations, or chart-of-accounts entries; categorizing/matching bank transactions; issuing refunds on customer payments; uploading or downloading local receipts and attachments; sending invoices/reminders by email; applying credits or unapplying payments. Triggers on phrases like "create an expense in Zoho", "categorize this bank transaction", "find the contact named X", "refund this payment", "mark this project active", "send the invoice to the customer", "attach this receipt", "download the bill PDF", or any mention of a Zoho Books record ID combined with a CRUD or file operation. Prefer this CLI over the Zoho MCP when the user will consume IDs in JavaScript (MCP loses precision on 19-digit IDs) or when binary uploads/downloads are involved.
 ---
 
 # Zoho Books CLI (`zb`) — agent usage
@@ -15,7 +15,7 @@ This file is the **agent-user** reference. For contributing code to the CLI, see
 
 Repo: <https://github.com/madisonrickert/zoho-books-cli>
 
-## When to use this CLI vs. the Zoho Books MCP
+## When to use this CLI vs. the Zoho MCP
 
 | Task | Use |
 | ---- | --- |
