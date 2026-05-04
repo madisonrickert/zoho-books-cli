@@ -62,7 +62,20 @@ Every wrapped command takes one or both of:
 
 `--page` and `--per-page` are first-class on every list. Opt-in `--page-all` (with `--page-limit` and `--page-delay`) auto-paginates and emits **NDJSON** — one JSON line per page.
 
-There are no typed per-field flags. Build the JSON body from Zoho's API docs.
+**There are no typed per-field flags — for filters or for body fields.** If a flag isn't in `<cmd> --help`, it doesn't exist. List filters go through `--query` / `--params` using Zoho's documented param names; bodies are built as JSON.
+
+```bash
+# Wrong — these flags don't exist; Typer will reject the call
+zb expenses list --date-start 2022-08-10 --date-end 2022-08-15
+zb expenses list --status unbilled
+
+# Right — Zoho's documented query params, passed verbatim
+zb expenses list --query from_date=2022-08-10 --query to_date=2022-08-15
+zb expenses list --params '{"from_date":"2022-08-10","to_date":"2022-08-15"}'
+zb expenses list --query status=unbilled --query vendor_id=98200000056700100
+```
+
+Filter param names come from Zoho's API reference for the underlying endpoint (`from_date`/`to_date`, `status`, `customer_id`, `vendor_id`, `search_text`, `filter_by`, ...) and vary by endpoint — bank-transactions statements use `from_date`/`to_date`, some other endpoints use `date_start`/`date_end`. **A mistyped or wrong-for-this-endpoint filter is silently ignored by Zoho** — the response looks fine but is unfiltered. If a filter doesn't seem to take, recheck the param name against Zoho's docs before assuming the data is correct.
 
 ## Output contract (parse this, not stdout text)
 
