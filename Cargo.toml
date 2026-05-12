@@ -44,7 +44,7 @@ csv = "1"
 thiserror = "2"
 tempfile = "3"
 url = "2"
-rand = "0.8"
+rand = "0.10"
 
 [dev-dependencies]
 mockito = "1"

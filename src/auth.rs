@@ -49,8 +49,8 @@ pub fn authorize(
     open_browser: bool,
     timeout: Duration,
 ) -> Result<TokenResponse> {
-    use rand::distributions::{Alphanumeric, DistString};
-    let state = Alphanumeric.sample_string(&mut rand::thread_rng(), 24);
+    use rand::distr::{Alphanumeric, SampleString};
+    let state = Alphanumeric.sample_string(&mut rand::rng(), 24);
 
     let server = tiny_http::Server::http(("127.0.0.1", REDIRECT_PORT)).map_err(|e| {
         ZohoError::auth_failed(format!(
