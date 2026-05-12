@@ -136,7 +136,7 @@ Live published package. Substantive changes go through review before landing on 
 Hand-rolled tag-driven pipeline in `.github/workflows/release.yml`:
 
 1. **verify-version** — fails the run if the tag doesn't match `Cargo.toml`'s version (gate before the long cross-compile jobs).
-2. **build** — matrix-builds the release binary for `aarch64-apple-darwin`, `x86_64-apple-darwin`, and `x86_64-unknown-linux-gnu`. Each archive bundles the binary + `README.md` + `LICENSE` plus a SHA-256.
+2. **build** — matrix-builds the release binary for `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, `x86_64-pc-windows-msvc`, and `aarch64-pc-windows-msvc`. Unix targets ship a `.tar.gz` with `zb`; Windows targets ship a `.zip` with `zb.exe`. Each archive bundles the binary + `README.md` + `LICENSE` plus a SHA-256.
 3. **github-release** — gathers the artifacts and creates the GitHub Release, with notes pointing at `MIGRATION.md`.
 4. **brew-tap** (opt-in, gated by repo variable `HOMEBREW_TAP_ENABLED == 'true'`) — computes the tarball SHAs, writes a `Formula/zoho-books-cli.rb` with `on_macos { on_arm / on_intel }` and `on_linux` blocks, and pushes it to `madisonrickert/homebrew-tap` using the `HOMEBREW_TAP_TOKEN` repo secret.
 

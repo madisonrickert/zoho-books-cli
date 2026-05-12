@@ -1,8 +1,8 @@
 [package]
 name = "zoho-books-cli"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Agent-first CLI for Zoho Books, filling gaps the official MCP can't cover (notably binary file uploads)."
 license = "MIT"
 readme = "README.md"
@@ -49,14 +49,25 @@ rand = "0.10"
 # Platform-specific keyring backends. Per the keyring-rs README, applications
 # shouldn't depend on the `keyring` crate directly (it's now sample code that
 # bundles every backend, including SQLite/turso which we don't use). Instead
-# we pull only the per-platform store we need. The macOS store uses its
-# `keychain` feature module for v3-compatible storage shape — required for
-# drop-in reads of credentials written by the Python implementation.
+# we pull only the per-platform store we need.
+#
+# - macOS: `apple-native-keyring-store`'s `keychain` feature module — v3
+#   compatible storage shape, required for drop-in reads of credentials
+#   written by the Python implementation.
+# - Linux: `zbus-secret-service-keyring-store` with `crypto-rust` — pure-Rust
+#   D-Bus client + pure-Rust crypto. No `libdbus-1` system dep, no OpenSSL
+#   system dep. Talks the same Secret Service wire protocol as Python's
+#   `keyring`, so credentials cross over without re-auth.
+# - Windows: `windows-native-keyring-store` — Wincred (Windows Credential
+#   Manager). Same backend Python's `keyring` defaults to.
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { version = "1", features = ["keychain"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-dbus-secret-service-keyring-store = "1"
+zbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-native-keyring-store = "1"
 
 [dev-dependencies]
 mockito = "1"

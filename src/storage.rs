@@ -2,9 +2,11 @@
 //!
 //! `RealStorage` is the production backend. It tries the OS keyring first
 //! (service `zoho-books-cli`, account `credentials`) and falls back to a
-//! `0600` JSON file at `<config_dir>/zoho-books-cli/credentials.json` —
-//! `~/Library/Application Support/...` on macOS, `~/.config/...` on Linux.
-//! File writes use `tempfile::NamedTempFile` for atomic temp-then-rename.
+//! JSON file at `<config_dir>/zoho-books-cli/credentials.json` —
+//! `~/Library/Application Support/...` on macOS, `~/.config/...` on Linux,
+//! `%APPDATA%\...` on Windows. On unix the file is chmod'd `0600`; on
+//! Windows it inherits user-private NTFS ACLs from `%APPDATA%`. File
+//! writes use `tempfile::NamedTempFile` for atomic temp-then-rename.
 //!
 //! `MemoryStorage` (gated `#[cfg(test)]`) is the in-process test fixture.
 //!
@@ -14,6 +16,7 @@
 
 use std::fs;
 use std::io::Write;
+#[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 #[cfg(test)]
@@ -93,8 +96,11 @@ pub fn default_file_path() -> PathBuf {
 /// - macOS: `apple-native-keyring-store`'s `keychain` module — stores via the
 ///   Security framework, the same shape Python's `keyring` library used. This
 ///   is what makes the drop-in canary work (Rust reads a Python-written entry).
-/// - Linux: `dbus-secret-service-keyring-store` — D-Bus Secret Service, also
-///   what Python's `keyring` defaults to on Linux for the same reason.
+/// - Linux: `zbus-secret-service-keyring-store` — D-Bus Secret Service via
+///   pure-Rust zbus (no `libdbus-1` system dep). Same wire protocol Python's
+///   `keyring` defaults to on Linux, so credentials cross over without re-auth.
+/// - Windows: `windows-native-keyring-store` — Wincred (Credential Manager),
+///   the same backend Python's `keyring` defaults to.
 /// - Other targets: the keyring path becomes a no-op and the file fallback
 ///   handles all storage.
 fn ensure_keyring_init() {
@@ -109,7 +115,13 @@ fn ensure_keyring_init() {
         }
         #[cfg(target_os = "linux")]
         {
-            if let Ok(store) = dbus_secret_service_keyring_store::Store::new() {
+            if let Ok(store) = zbus_secret_service_keyring_store::Store::new() {
+                keyring_core::set_default_store(store);
+            }
+        }
+        #[cfg(target_os = "windows")]
+        {
+            if let Ok(store) = windows_native_keyring_store::Store::new() {
                 keyring_core::set_default_store(store);
             }
         }
@@ -155,8 +167,13 @@ fn write_file(path: &Path, creds: &Credentials) -> Result<()> {
     let mut tmp = NamedTempFile::new_in(parent)?;
     tmp.write_all(raw.as_bytes())?;
     tmp.as_file_mut().sync_all()?;
-    let perms = fs::Permissions::from_mode(0o600);
-    fs::set_permissions(tmp.path(), perms)?;
+    // Unix: explicit 0600 chmod. Windows: %APPDATA% inherits a user-private
+    // NTFS ACL by default, so no extra step needed for an analogous guarantee.
+    #[cfg(unix)]
+    {
+        let perms = fs::Permissions::from_mode(0o600);
+        fs::set_permissions(tmp.path(), perms)?;
+    }
     tmp.persist(path)
         .map_err(|e| ZohoError::validation(format!("failed to persist credentials file: {e}")))?;
     Ok(())
@@ -265,10 +282,13 @@ mod tests {
         store.save(&sample_creds()).unwrap();
         assert_eq!(store.load().unwrap().unwrap(), sample_creds());
 
-        // 0600 perms
-        let meta = fs::metadata(&path).unwrap();
-        let mode = meta.permissions().mode() & 0o777;
-        assert_eq!(mode, 0o600, "expected 0600, got {mode:o}");
+        // 0600 perms (unix only — Windows inherits a user-private ACL from %APPDATA%).
+        #[cfg(unix)]
+        {
+            let meta = fs::metadata(&path).unwrap();
+            let mode = meta.permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600, "expected 0600, got {mode:o}");
+        }
 
         store.clear().unwrap();
         assert!(!path.exists());

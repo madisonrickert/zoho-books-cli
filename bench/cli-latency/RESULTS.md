@@ -20,7 +20,7 @@ Raw `hyperfine` JSON exports are kept under `bench/cli-latency/raw/<label>/` and
 
 ## Results
 
-| Metric | Python 0.5.0 | Rust 1.0.1 | Speedup |
+| Metric | Python 0.5.0 | Rust 1.0.2 | Speedup |
 |---|---:|---:|---:|
 | Cold start (`--version`) | 117.4 ms ± 2.8 | 4.2 ms ± 0.4 | **28.0×** |
 | Warm `--help` | 140.4 ms ± 1.6 | 4.2 ms ± 0.4 | **33.4×** |
@@ -40,9 +40,9 @@ The port has to earn its keep. Hard gates for the original 1.0.0 release:
 - Warm `--help`: **≥ 20× faster** (target: under 8 ms). **Cleared: 33× (4.2 ms).**
 - RSS at idle: **≥ 5× smaller** (target: under 8 MB). **At 4.9× (7.7 MB) — within rounding of the 5× bar.**
 
-The cold-start and warm gates remain well clear. RSS is within rounding of the 5× bar after the 1.0.1 dep refresh (was 5.0× at 1.0.0 with 7.5 MB; now 4.9× at 7.7 MB). Live-API improves only by the startup-overhead delta (~140 ms), as expected for a network-bounded operation; the stddev is dominated by network jitter.
+The cold-start and warm gates remain well clear. RSS is within rounding of the 5× bar after the 1.0.2 dep refresh (was 5.0× at 1.0.0 with 7.5 MB; now 4.9× at 7.7 MB). Live-API improves only by the startup-overhead delta (~140 ms), as expected for a network-bounded operation; the stddev is dominated by network jitter.
 
-The "install footprint" comparison is between the Python `uv tool` venv (which includes Python's bundled stdlib + every transitive dep — httpx, typer, keyring, platformdirs, pyyaml, click, rich) and the Rust single binary (which statically links rustls + the rest). 1.0.1's 4.5 MB is heavier than 1.0.0's 3.3 MB because reqwest 0.13 switched the rustls crypto provider from `ring` to `aws-lc-rs` (BoringSSL fork; ~1.2 MB heavier but where the rustls ecosystem is heading). Still 3.6× smaller than the Python install tree.
+The "install footprint" comparison is between the Python `uv tool` venv (which includes Python's bundled stdlib + every transitive dep — httpx, typer, keyring, platformdirs, pyyaml, click, rich) and the Rust single binary (which statically links rustls + the rest). 1.0.2's 4.5 MB is heavier than 1.0.0's 3.3 MB because reqwest 0.13 switched the rustls crypto provider from `ring` to `aws-lc-rs` (BoringSSL fork; ~1.2 MB heavier but where the rustls ecosystem is heading). Still 3.6× smaller than the Python install tree.
 
 ## Reproducing
 
@@ -60,6 +60,6 @@ Each invocation writes timings to `raw/<label>/`. Update the table above by hand
 ## Provenance
 
 - Python baseline: commit `3638d4c` on `main`, tagged `bench/python-baseline-v0.5.0`.
-- Rust column: captured on the `v1.0.1` tag after the dep refresh (rand 0.8 → 0.10; reqwest 0.12 → 0.13; pre-commit-hooks v4.6.0 → v6.0.0; keyring 3 → keyring-core + apple-native-keyring-store), with the release-profile build (LTO + codegen-units=1 + strip + panic=abort).
+- Rust column: captured on the `v1.0.2` tag after the dep refresh (rand 0.8 → 0.10; reqwest 0.12 → 0.13; pre-commit-hooks v4.6.0 → v6.0.0; keyring 3 → keyring-core + apple-native-keyring-store), with the release-profile build (LTO + codegen-units=1 + strip + panic=abort). The intermediate `v1.0.1` tag was abandoned mid-pipeline when the new Linux keyring backend exposed a missing `libdbus-1-dev` dep on the GHA runner; `v1.0.2` is the same binary plus the CI fix.
 - Machine: same physical macOS arm64 host for both columns. Hyperfine 1.20.0 with `--shell=none`.
 - Earlier 1.0.0 numbers (3.3 MB binary, 7.5 MB RSS, 3.9 ms cold start) are preserved in the merge commit `2a9dab9` and the v1.0.0 release notes.

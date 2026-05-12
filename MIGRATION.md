@@ -112,8 +112,9 @@ Remove any matches and restart your shell.
 
 ### Linux keyring backend
 
-Both Python's `keyring` library and Rust's `keyring` crate target the
-freedesktop `secret-service` API on Linux. If you had keyring storage
+Both Python's `keyring` library and the Rust binary target the freedesktop
+`secret-service` API on Linux. Rust uses pure-Rust zbus to speak the
+protocol (no `libdbus-1` system dep required). If you had keyring storage
 working under Python, the Rust binary reads the same slot. If you were on
 the file fallback (no GNOME Keyring / KWallet daemon), the Rust binary
 reads the same `credentials.json` file.

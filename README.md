@@ -60,7 +60,7 @@ Re-run the same command to upgrade. Removes with `cargo uninstall zoho-books-cli
 <details>
 <summary>Alternative: pre-built binaries</summary>
 
-Each release on [GitHub Releases](https://github.com/madisonrickert/zoho-books-cli/releases) ships pre-compiled binaries for macOS arm64, macOS x86_64, and Linux x86_64. Download the tarball for your platform and drop the `zb` binary into a directory on your `$PATH` (e.g. `/usr/local/bin` or `~/.local/bin`).
+Each release on [GitHub Releases](https://github.com/madisonrickert/zoho-books-cli/releases) ships pre-compiled binaries for macOS arm64, macOS x86_64, Linux x86_64, Windows x86_64, and Windows arm64. Download the tarball (unix) or zip (Windows) for your platform and drop the `zb` / `zb.exe` binary into a directory on your `$PATH` (e.g. `/usr/local/bin`, `~/.local/bin`, or `%USERPROFILE%\bin` on Windows).
 
 </details>
 
@@ -75,9 +75,10 @@ Each release on [GitHub Releases](https://github.com/madisonrickert/zoho-books-c
    zb auth login --client-id $ZOHO_CLIENT_ID --client-secret $ZOHO_CLIENT_SECRET
    ```
 
-   A browser window opens; authorize the app. Tokens are stored in your OS keychain (macOS Keychain on Darwin; Secret Service on Linux) with a `0600` file fallback at:
-   - macOS: `~/Library/Application Support/zoho-books-cli/credentials.json`
-   - Linux: `~/.config/zoho-books-cli/credentials.json`
+   A browser window opens; authorize the app. Tokens are stored in your OS credential store (macOS Keychain, Linux Secret Service, Windows Credential Manager) with a file fallback at:
+   - macOS: `~/Library/Application Support/zoho-books-cli/credentials.json` (`0600`)
+   - Linux: `~/.config/zoho-books-cli/credentials.json` (`0600`)
+   - Windows: `%APPDATA%\zoho-books-cli\credentials.json` (user-private NTFS ACL)
 
 5. Pick your organization:
 
