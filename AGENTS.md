@@ -80,12 +80,30 @@ The 17 invariants enumerated in the original port plan ([`bench/cli-latency/RESU
 9. 401 → silent refresh → retry-once. 429 → up to 3 retries, exponential backoff, honor `Retry-After`.
 10. Multipart validation (pdf/jpg/jpeg/png/gif; 10 MB cap).
 11. 19-digit-ID preservation via `RawValue` pass-through.
-12. `--dry-run` short-circuits before any HTTP send and scrubs `Authorization`.
+12. `--dry-run` short-circuits before any HTTP send and scrubs `Authorization`. Composed commands (one CLI call, multiple internal client calls) must exit at the FIRST internal call — see "DryRunOk propagation" below.
 13. Token refresh side effect: writes new access_token + expires_at to storage.
 14. Stdout/stderr discipline: success → stdout once; error → stderr once.
 15. Config precedence: CLI flag > env > stored > default.
 16. Missing `org_id` → `validation` (exit 3), not `auth_required` (exit 2).
 17. Batch attachment `add` tolerates partial failure (per-file `Result` in the result array, no `?`-propagation).
+
+## DryRunOk propagation
+
+`Client::request` signals dry-run completion by emitting the preview envelope on stdout and returning `Err(ZohoError { kind: ErrorKind::DryRunOk, .. })`. The dispatch layer in `main` treats this kind as success (exit 0) and suppresses the error envelope.
+
+The wrinkle is composed commands: anything that calls the client inside a loop with per-iteration error catching (see `expenses::attachments_add`, `bills::attachments_add`, `invoices::attachments_add`). Those loops must **propagate `DryRunOk` immediately**, before the per-iteration error handler runs — otherwise the preview is emitted N times and a fake "results" envelope follows. Invariants 12 ("exit at first call") and 14 ("stdout once") both break.
+
+The pattern is one match arm:
+
+```rust
+match upload_one(...) {
+    Ok(resp) => { /* store result */ }
+    Err(e) if crate::errors::ErrorKind::DryRunOk == e.kind => return Err(e),
+    Err(e) => { /* store fake-failure result */ }
+}
+```
+
+No helper function (3 sites today; would be premature abstraction). Document the rule here; spot it in code review when a new composed command lands.
 
 ## Security
 
