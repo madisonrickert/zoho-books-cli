@@ -238,14 +238,38 @@ mod tests {
     #[test]
     fn nineteen_digit_id_round_trip_via_emit() {
         // Public-contract invariant 11: 19-digit IDs preserved bit-perfect.
-        // serde_json with arbitrary_precision OFF would corrupt this number.
-        // arbitrary_precision is enabled in Cargo.toml; verify the assumption.
+        // 19-digit decimals fit in u64::MAX (18_446_744_073_709_551_615), so
+        // even serde_json's default Number representation preserves them. The
+        // *real* defense for arbitrarily large numbers lives in `arbitrary_precision`
+        // (Cargo.toml) — verified by the 20-digit test below.
         let raw = r#"{"contact_id":9820000005670010000}"#;
         let parsed: Value = serde_json::from_str(raw).unwrap();
         let s = capture(|w| emit_success(&parsed, OutputFormat::Json, w));
         assert!(
             s.contains("9820000005670010000"),
             "expected exact 19-digit ID in output, got: {s}"
+        );
+    }
+
+    #[test]
+    fn twenty_digit_number_survives_arbitrary_precision() {
+        // 99999999999999999999 (20 nines) exceeds u64::MAX. Without
+        // arbitrary_precision serde_json silently parses to f64 ≈ 1e20 and
+        // re-serializes that approximation, losing every digit. With the
+        // feature on, the literal is stored as a string and emitted byte-
+        // for-byte. This is the defense against future Zoho fields that
+        // might carry larger numerics (microsecond timestamps, JS-generated
+        // identifiers).
+        let raw = r#"{"big":99999999999999999999}"#;
+        let parsed: Value = serde_json::from_str(raw).unwrap();
+        let s = capture(|w| emit_success(&parsed, OutputFormat::Json, w));
+        assert!(
+            s.contains("99999999999999999999"),
+            "arbitrary_precision must preserve 20-digit literal; got: {s}"
+        );
+        assert!(
+            !s.contains("1e"),
+            "arbitrary_precision must NOT emit scientific notation; got: {s}"
         );
     }
 }

@@ -227,6 +227,11 @@ fn attachments_add(args: AttachmentsAddArgs, ctx: &mut Ctx) -> Result<()> {
                 entry.insert("ok".into(), Value::Bool(true));
                 entry.insert("response".into(), resp);
             }
+            // DryRunOk is a sentinel — the client already emitted the preview to
+            // stdout. Propagate it to short-circuit the loop (invariant 12: dry-run
+            // exits at the FIRST internal call) and avoid a second stdout write
+            // from emit_success_raw (invariant 14: stdout exactly once).
+            Err(e) if crate::errors::ErrorKind::DryRunOk == e.kind => return Err(e),
             Err(e) => {
                 entry.insert("ok".into(), Value::Bool(false));
                 entry.insert(

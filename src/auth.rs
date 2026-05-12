@@ -283,7 +283,19 @@ pub fn refresh_access_token(
     refresh_token: &str,
     region: &Region,
 ) -> Result<TokenResponse> {
-    let url = format!("{}/oauth/v2/token", region.accounts_url);
+    refresh_access_token_at(region.accounts_url, client_id, client_secret, refresh_token)
+}
+
+/// `refresh_access_token` variant with an explicit accounts URL. Used by the
+/// client so a test can point both the API base and the OAuth refresh endpoint
+/// at the same mockito server.
+pub fn refresh_access_token_at(
+    accounts_url: &str,
+    client_id: &str,
+    client_secret: &str,
+    refresh_token: &str,
+) -> Result<TokenResponse> {
+    let url = format!("{accounts_url}/oauth/v2/token");
     let form = [
         ("refresh_token", refresh_token),
         ("client_id", client_id),

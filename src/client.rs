@@ -76,6 +76,9 @@ pub struct Client {
     format: OutputFormat,
     /// If Some, all requests target this URL instead of cfg.region.api_url — for tests.
     override_base: Option<String>,
+    /// If Some, refresh requests target this accounts URL instead of cfg.region.accounts_url
+    /// — for tests that need to exercise the 401→refresh→retry path without hitting Zoho.
+    override_accounts: Option<String>,
 }
 
 impl Client {
@@ -103,6 +106,7 @@ impl Client {
             dry_run,
             format,
             override_base: None,
+            override_accounts: None,
         })
     }
 
@@ -110,6 +114,15 @@ impl Client {
     #[cfg(test)]
     pub fn with_api_override(mut self, base: impl Into<String>) -> Self {
         self.override_base = Some(base.into());
+        self
+    }
+
+    /// Test helper: replace the accounts URL used by the OAuth refresh path so
+    /// the 401-refresh-retry-once state machine can be exercised against a
+    /// single mockito server. Production code never calls this.
+    #[cfg(test)]
+    pub fn with_accounts_override(mut self, accounts: impl Into<String>) -> Self {
+        self.override_accounts = Some(accounts.into());
         self
     }
 
@@ -334,8 +347,12 @@ impl Client {
         let client_id = self.cfg.client_id.as_deref().unwrap_or_default();
         let client_secret = self.cfg.client_secret.as_deref().unwrap_or_default();
         let refresh_token = self.cfg.refresh_token.as_deref().unwrap_or_default();
+        let accounts_url = self
+            .override_accounts
+            .as_deref()
+            .unwrap_or(self.cfg.region.accounts_url);
         let body =
-            auth::refresh_access_token(client_id, client_secret, refresh_token, self.cfg.region)?;
+            auth::refresh_access_token_at(accounts_url, client_id, client_secret, refresh_token)?;
         let access = body.access_token.clone();
         let expires_at = now_unix_secs() + body.expires_in as f64;
         self.cfg.access_token = Some(access.clone());
@@ -666,12 +683,67 @@ mod tests {
 
     #[test]
     fn refresh_on_401_then_retry_once() {
+        // Invariant 9: a 401 silently refreshes the access token (POST to
+        // accounts_url/oauth/v2/token) and retries the original request exactly
+        // once with the new token. A subsequent 401 must NOT trigger a second
+        // refresh.
         let mut server = mockito::Server::new();
+
+        // First call: uses the stale token "at", returns 401.
         let m_first = server
             .mock("GET", "/books/v3/contacts")
+            .match_query(mockito::Matcher::Any)
             .match_header("authorization", "Zoho-oauthtoken at")
             .with_status(401)
-            .with_body(r#"{"code":57,"message":"Authentication failure"}"#)
+            .with_body(r#"{"code":57,"message":"Invalid OAuth Token"}"#)
+            .expect(1)
+            .create();
+
+        // Refresh exchange: returns a new access token.
+        let m_refresh = server
+            .mock("POST", "/oauth/v2/token")
+            .match_body(mockito::Matcher::Regex("grant_type=refresh_token".into()))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"access_token":"NEW","expires_in":3600}"#)
+            .expect(1)
+            .create();
+
+        // Retry: same request, new token, succeeds.
+        let m_retry = server
+            .mock("GET", "/books/v3/contacts")
+            .match_query(mockito::Matcher::Any)
+            .match_header("authorization", "Zoho-oauthtoken NEW")
+            .with_status(200)
+            .with_body(r#"{"contacts":[{"id":"1"}]}"#)
+            .expect(1)
+            .create();
+
+        let mut client =
+            make_client(test_cfg(None), &server.url()).with_accounts_override(server.url());
+        let resp = client.get("/contacts", &Query::new()).unwrap();
+        assert!(resp.get("contacts").is_some());
+
+        m_first.assert();
+        m_refresh.assert();
+        m_retry.assert();
+
+        // Side effect: cfg.access_token was updated to the new value.
+        assert_eq!(client.cfg.access_token.as_deref(), Some("NEW"));
+    }
+
+    #[test]
+    fn second_401_after_refresh_does_not_trigger_second_refresh() {
+        // Invariant 9 corollary: the RetryState.refreshed flag prevents an
+        // infinite refresh loop when the new token is also rejected.
+        let mut server = mockito::Server::new();
+
+        let m_first = server
+            .mock("GET", "/books/v3/contacts")
+            .match_query(mockito::Matcher::Any)
+            .match_header("authorization", "Zoho-oauthtoken at")
+            .with_status(401)
+            .with_body(r#"{"code":57,"message":"Invalid OAuth Token"}"#)
             .expect(1)
             .create();
         let m_refresh = server
@@ -682,25 +754,22 @@ mod tests {
             .create();
         let m_retry = server
             .mock("GET", "/books/v3/contacts")
+            .match_query(mockito::Matcher::Any)
             .match_header("authorization", "Zoho-oauthtoken NEW")
-            .with_status(200)
-            .with_body(r#"{"contacts":[]}"#)
+            .with_status(401)
+            .with_body(r#"{"code":57,"message":"Still rejected"}"#)
             .expect(1)
             .create();
 
-        // Build cfg with a region whose accounts_url is the mock server. Hack:
-        // we can't actually swap region URLs at the type level (regions are
-        // 'static), so we put the refresh URL into a leaked Region. Instead,
-        // test refresh by setting expires_at in the past so token is "expired".
-        // The Zoho refresh URL is region.accounts_url which is fixed — but for
-        // us-region, that's accounts.zoho.com, not our mock. So we can't easily
-        // test the 401-refresh-retry against mockito unless we also override
-        // the accounts URL. Skip this path here; it's covered by integration.
-        //
-        // (Keeping the mocks to document intent; tests assert that nothing was
-        // hit because we abort before the refresh attempt.)
-        let _ = (m_first, m_refresh, m_retry);
-        // No-op assertion; full 401→refresh→retry verified by client_int.rs integration test once accounts URL is overridable.
-        // The intent here is documented even though the path isn't exercised yet.
+        let mut client =
+            make_client(test_cfg(None), &server.url()).with_accounts_override(server.url());
+        let err = client.get("/contacts", &Query::new()).unwrap_err();
+        // After the second 401, the client gives up — surfaces as an API error
+        // (Zoho returned 401 with code 57; the wrapper sees a non-2xx body).
+        assert_eq!(err.code(), "api_error");
+
+        m_first.assert();
+        m_refresh.assert(); // refreshed exactly once
+        m_retry.assert();
     }
 }

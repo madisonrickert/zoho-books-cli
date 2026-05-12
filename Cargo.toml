@@ -22,7 +22,7 @@ tiny_http = "0.12"
 keyring = { version = "3", features = ["apple-native", "linux-native"] }
 dirs = "6"
 serde = { version = "1", features = ["derive"] }
-serde_json = { version = "1", features = ["raw_value", "preserve_order"] }
+serde_json = { version = "1", features = ["raw_value", "preserve_order", "arbitrary_precision"] }
 serde_yml = "0.0.12"
 csv = "1"
 thiserror = "2"
