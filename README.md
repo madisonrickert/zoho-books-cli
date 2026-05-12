@@ -256,4 +256,4 @@ The CLI wraps a broad slice of the Zoho Books v3 API but does **not** cover all 
 - Contacts: 1099 tracking, portal/reminder toggles, statements-email, opening balance
 - Recurring expenses / invoices: anything beyond what's listed in the command groups above
 
-If one of these is blocking you, open an issue. In the meantime: `zb raw <METHOD> <path>` reaches anything authenticated. (Contributors: see [`AGENTS.md`](AGENTS.md) for the pattern — wrapping a new resource is ~50 lines using `src/commands/common.rs`.)
+If one of these is blocking you, open an issue. In the meantime: `zb raw <METHOD> <path>` reaches anything authenticated.
