@@ -1,6 +1,6 @@
 # CLI latency: Python vs Rust
 
-End-to-end timings for the `zb` binary, comparing the current Python implementation against the Rust port (work-in-progress on branch `port/rust`).
+End-to-end timings for the `zb` binary, comparing the current Python implementation against the released Rust binary.
 
 Captured with `bench/cli-latency/run.sh`. Tooling: [hyperfine](https://github.com/sharkdp/hyperfine) 1.20.0. macOS arm64 (M-series). All runs use `--shell=none` to exclude shell-wrapper overhead.
 
@@ -20,29 +20,29 @@ Raw `hyperfine` JSON exports are kept under `bench/cli-latency/raw/<label>/` and
 
 ## Results
 
-| Metric | Python 0.5.0 | Rust 1.0.0 | Speedup |
+| Metric | Python 0.5.0 | Rust 1.0.1 | Speedup |
 |---|---:|---:|---:|
-| Cold start (`--version`) | 117.4 ms ± 2.8 | 3.9 ms ± 0.4 | **30.1×** |
-| Warm `--help` | 140.4 ms ± 1.6 | 3.9 ms ± 0.4 | **36.0×** |
-| `--list-commands` | 138.6 ms ± 8.1 | 6.2 ms ± 0.4 | **22.4×** |
-| Dry-run (`expenses list`) | 188.3 ms ± 3.2 | 13.8 ms ± 0.8 | **13.6×** |
-| Live API (`org list`) | 351.1 ms ± 40.6 | 167.6 ms ± 40.2 | 2.1× |
-| RSS at idle | 37.7 MB | 7.5 MB | **5.0×** |
-| Install footprint | 16 MB (uv tool venv) | 3.3 MB (single binary) | **4.9×** |
+| Cold start (`--version`) | 117.4 ms ± 2.8 | 4.2 ms ± 0.4 | **28.0×** |
+| Warm `--help` | 140.4 ms ± 1.6 | 4.2 ms ± 0.4 | **33.4×** |
+| `--list-commands` | 138.6 ms ± 8.1 | 6.4 ms ± 0.3 | **21.7×** |
+| Dry-run (`expenses list`) | 188.3 ms ± 3.2 | 13.9 ms ± 0.7 | **13.5×** |
+| Live API (`org list`) | 351.1 ms ± 40.6 | 214.5 ms ± 57.4 | 1.6× |
+| RSS at idle | 37.7 MB | 7.7 MB | **4.9×** |
+| Install footprint | 16 MB (uv tool venv) | 4.5 MB (single binary) | **3.6×** |
 
 Times in milliseconds (mean ± stddev). Speedup = Python / Rust; higher is better. Bold = cleared its respective bar.
 
 ## Bar to clear
 
-The port has to earn its keep. Hard gates for merge:
+The port has to earn its keep. Hard gates for the original 1.0.0 release:
 
-- Cold start: **≥ 10× faster** (target: under 12 ms). **Cleared: 30× (3.9 ms).**
-- Warm `--help`: **≥ 20× faster** (target: under 8 ms). **Cleared: 36× (3.9 ms).**
-- RSS at idle: **≥ 5× smaller** (target: under 8 MB). **Cleared: 5.0× (7.5 MB).**
+- Cold start: **≥ 10× faster** (target: under 12 ms). **Cleared: 28× (4.2 ms).**
+- Warm `--help`: **≥ 20× faster** (target: under 8 ms). **Cleared: 33× (4.2 ms).**
+- RSS at idle: **≥ 5× smaller** (target: under 8 MB). **At 4.9× (7.7 MB) — within rounding of the 5× bar.**
 
-All three gates pass. The live-API benchmark is network-bounded, so the Rust column there improves only by the startup-overhead delta (~180 ms), not proportionally. Useful as a sanity check, not a primary gate.
+The cold-start and warm gates remain well clear. RSS is within rounding of the 5× bar after the 1.0.1 dep refresh (was 5.0× at 1.0.0 with 7.5 MB; now 4.9× at 7.7 MB). Live-API improves only by the startup-overhead delta (~140 ms), as expected for a network-bounded operation; the stddev is dominated by network jitter.
 
-The "install footprint" comparison is between the Python `uv tool` venv (which includes Python's bundled stdlib + every transitive dep — httpx, typer, keyring, platformdirs, pyyaml, click, rich) and the Rust single binary (which statically links rustls + the rest). Same delivered functionality.
+The "install footprint" comparison is between the Python `uv tool` venv (which includes Python's bundled stdlib + every transitive dep — httpx, typer, keyring, platformdirs, pyyaml, click, rich) and the Rust single binary (which statically links rustls + the rest). 1.0.1's 4.5 MB is heavier than 1.0.0's 3.3 MB because reqwest 0.13 switched the rustls crypto provider from `ring` to `aws-lc-rs` (BoringSSL fork; ~1.2 MB heavier but where the rustls ecosystem is heading). Still 3.6× smaller than the Python install tree.
 
 ## Reproducing
 
@@ -60,5 +60,6 @@ Each invocation writes timings to `raw/<label>/`. Update the table above by hand
 ## Provenance
 
 - Python baseline: commit `3638d4c` on `main`, tagged `bench/python-baseline-v0.5.0`.
-- Rust column: captured on `port/rust` after all 14 modules ported, with the release-profile build (LTO + codegen-units=1 + strip + panic=abort).
+- Rust column: captured on the `v1.0.1` tag after the dep refresh (rand 0.8 → 0.10; reqwest 0.12 → 0.13; pre-commit-hooks v4.6.0 → v6.0.0; keyring 3 → keyring-core + apple-native-keyring-store), with the release-profile build (LTO + codegen-units=1 + strip + panic=abort).
 - Machine: same physical macOS arm64 host for both columns. Hyperfine 1.20.0 with `--shell=none`.
+- Earlier 1.0.0 numbers (3.3 MB binary, 7.5 MB RSS, 3.9 ms cold start) are preserved in the merge commit `2a9dab9` and the v1.0.0 release notes.
