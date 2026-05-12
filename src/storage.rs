@@ -86,20 +86,36 @@ pub fn default_file_path() -> PathBuf {
         .join("credentials.json")
 }
 
+/// In keyring v4 a default store must be activated before any `Entry` use.
+/// `not_keyutils = true` selects Secret Service on Linux (instead of the
+/// kernel keyutils backend), matching Python's `keyring` library default —
+/// important for the drop-in canary where the Rust binary must read a
+/// Python-written keyring entry.
+fn ensure_keyring_init() {
+    use std::sync::Once;
+    static INIT: Once = Once::new();
+    INIT.call_once(|| {
+        let _ = keyring::use_native_store(true);
+    });
+}
+
 fn try_keyring_load() -> Option<String> {
-    let entry = keyring::Entry::new(SERVICE, ACCOUNT).ok()?;
+    ensure_keyring_init();
+    let entry = keyring_core::Entry::new(SERVICE, ACCOUNT).ok()?;
     entry.get_password().ok()
 }
 
 fn try_keyring_save(raw: &str) -> bool {
-    let Ok(entry) = keyring::Entry::new(SERVICE, ACCOUNT) else {
+    ensure_keyring_init();
+    let Ok(entry) = keyring_core::Entry::new(SERVICE, ACCOUNT) else {
         return false;
     };
     entry.set_password(raw).is_ok()
 }
 
 fn try_keyring_clear() {
-    if let Ok(entry) = keyring::Entry::new(SERVICE, ACCOUNT) {
+    ensure_keyring_init();
+    if let Ok(entry) = keyring_core::Entry::new(SERVICE, ACCOUNT) {
         let _ = entry.delete_credential();
     }
 }

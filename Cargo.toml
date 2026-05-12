@@ -35,7 +35,8 @@ path = "src/main.rs"
 clap = { version = "4", features = ["derive", "wrap_help", "env"] }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls", "multipart", "json"] }
 tiny_http = "0.12"
-keyring = { version = "3", features = ["apple-native", "linux-native"] }
+keyring = "4"
+keyring-core = "1"
 dirs = "6"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value", "preserve_order", "arbitrary_precision"] }
