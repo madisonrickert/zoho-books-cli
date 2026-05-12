@@ -1,3 +1,14 @@
+//! Format dispatch + NDJSON streaming. Every emitter takes a generic
+//! `Write` so tests can capture output; production code passes
+//! `io::stdout().lock()`. JSON is the default and the only format that
+//! prints a single line; YAML is multi-line via `serde_yml`; "table" is
+//! pretty-printed JSON (mirroring Python's `rich`-less fallback); CSV
+//! only applies to list-shaped responses and warns to stderr otherwise.
+//!
+//! `write_ndjson_line` is the per-page emitter used by
+//! `shared::emit_list_paginated` under `--page-all` — one JSON object
+//! per line, `\n`-terminated, flushed after each line.
+
 use std::io::{self, Write};
 
 use serde_json::{Value, json};

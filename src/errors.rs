@@ -1,3 +1,13 @@
+//! Typed error hierarchy + stable exit-code mapping. Every command path
+//! returns `Result<T, ZohoError>`; `main` maps the `ErrorKind` to the
+//! documented exit code (0/1/2/3/4/5/6) and emits the
+//! `{ok: false, error: {code, message, details}}` envelope to stderr.
+//!
+//! The `ErrorKind::DryRunOk` variant is a control-flow sentinel rather
+//! than an actual error — it signals that the client already emitted a
+//! dry-run preview, and main treats it as exit 0 without printing an
+//! error envelope. See `AGENTS.md` for the DryRunOk propagation rule.
+
 use serde_json::{Value, json};
 use thiserror::Error;
 

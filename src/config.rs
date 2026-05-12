@@ -1,3 +1,11 @@
+//! `RuntimeConfig` and the precedence resolution that builds it:
+//! CLI flag > env var (`ZOHO_REGION`, `ZOHO_ORG_ID`, `ZOHO_CLIENT_ID`,
+//! `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN`) > stored credentials >
+//! default. Also the helpers commands use to persist tokens
+//! (`save_tokens`, `update_access_token`, `save_org`) and the assertion
+//! helpers (`require_auth`, `require_org`) that map missing state to the
+//! right typed error.
+
 use std::env;
 
 use crate::errors::{Result, ZohoError};

@@ -1,3 +1,10 @@
+//! Clap root: defines the `Cli` struct + global options (`--format`,
+//! `--pretty`, `--dry-run`, `--version`, `--list-commands`), the
+//! `Commands` enum that registers every sub-app, and the `Ctx` value
+//! that's threaded through every command. Also home to the
+//! `--list-commands` manifest walker (sorted alphabetically to match
+//! Python's emission order) and the top-level dispatch.
+
 use std::io::{self, Write};
 use std::sync::Arc;
 

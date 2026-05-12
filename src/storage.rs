@@ -1,3 +1,17 @@
+//! Credential storage: a `Storage` trait with two impls.
+//!
+//! `RealStorage` is the production backend. It tries the OS keyring first
+//! (service `zoho-books-cli`, account `credentials`) and falls back to a
+//! `0600` JSON file at `<config_dir>/zoho-books-cli/credentials.json` —
+//! `~/Library/Application Support/...` on macOS, `~/.config/...` on Linux.
+//! File writes use `tempfile::NamedTempFile` for atomic temp-then-rename.
+//!
+//! `MemoryStorage` (gated `#[cfg(test)]`) is the in-process test fixture.
+//!
+//! The `Credentials` struct mirrors the Python implementation's 7-field
+//! JSON schema; all fields are `Option` so partial credentials still
+//! deserialize cleanly.
+
 use std::fs;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;

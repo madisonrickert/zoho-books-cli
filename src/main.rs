@@ -1,3 +1,8 @@
+//! Binary entry point. Parses the CLI, dispatches to the right command,
+//! maps `ZohoError` to exit codes per the public contract, and installs a
+//! panic hook that emits the `unknown` error envelope so internal panics
+//! still satisfy the stdout/stderr discipline.
+
 mod auth;
 mod cli;
 mod client;

@@ -1,3 +1,8 @@
+//! `zb raw <METHOD> <path>` — escape hatch to any Zoho v3 endpoint.
+//! Accepts the same `--body` / `--query` / `--params` / `--file` flags as
+//! the typed wrappers but bypasses path/method validation entirely. The
+//! envelope wraps Zoho's response in `{method, path, response}`.
+
 use std::io::{self, Write};
 use std::path::PathBuf;
 use std::str::FromStr;

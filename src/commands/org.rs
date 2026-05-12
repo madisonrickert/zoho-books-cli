@@ -1,3 +1,7 @@
+//! `zb org` — list (call /organizations; bypasses org_id injection via
+//! `Client::get_no_org`), use (persist the default org_id), current
+//! (show resolved config), get (single-org details), update.
+
 use std::io::{self, Write};
 
 use clap::{Args, Subcommand};

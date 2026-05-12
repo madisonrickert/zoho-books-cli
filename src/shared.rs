@@ -1,3 +1,18 @@
+//! Body/query parsing + emit helpers used by every domain command.
+//!
+//! `parse_body` returns `Box<RawValue>` so `--body` bytes (or
+//! `@file.json` contents) reach the wire byte-perfect — critical for
+//! 19-digit Zoho IDs that exceed `Number.MAX_SAFE_INTEGER`.
+//! `parse_query_pairs` merges `--query k=v` flags with an optional
+//! `--params <JSON>` object (params wins; null removes; numerics
+//! coerce to strings under `arbitrary_precision`).
+//!
+//! `emit_list` / `emit_object` / `emit_action` strip Zoho's
+//! `code`/`message` envelope and emit the CLI's `{ok, data}` shape.
+//! `emit_list_paginated` is the pagination driver — single-page by
+//! default, NDJSON-streaming under `--page-all` until
+//! `page_context.has_more_page` is false or the page-limit is reached.
+
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Write};

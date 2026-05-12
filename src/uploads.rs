@@ -1,3 +1,8 @@
+//! Multipart upload validation: extension whitelist (pdf/jpg/jpeg/png/gif),
+//! 10 MB size cap, case-insensitive MIME guess with
+//! `application/octet-stream` fallback. Run before every multipart POST
+//! so client-side rejections don't cost a wire round-trip.
+
 use std::path::Path;
 
 use serde_json::json;

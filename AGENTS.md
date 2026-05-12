@@ -4,14 +4,12 @@ For agents (and humans) **contributing code**. Agent-**user** contract is in [`s
 
 ## Layout
 
-- `src/main.rs` — entry point: parses CLI, dispatches, maps errors to exit codes, installs the panic hook.
-- `src/cli.rs` — clap root, global options (`--format`, `--pretty`, `--dry-run`, `--version`, `--list-commands`), sub-app registration, the `Ctx` struct passed to every command, the `--list-commands` manifest walker.
-- `src/client.rs` — `reqwest::blocking` wrapper: region routing, `organization_id` injection, 401-refresh-retry, 429 backoff (max 3), `--dry-run` short-circuit, multipart upload path.
-- `src/auth.rs` / `src/storage.rs` / `src/config.rs` — OAuth (loopback port 8976, `tiny_http`) + keyring/file token persistence + `RuntimeConfig` precedence resolution.
-- `src/regions.rs`, `src/output.rs`, `src/errors.rs`, `src/uploads.rs` — region URLs, JSON/YAML/table/CSV emission, typed errors + exit codes, multipart validation.
-- `src/shared.rs` — `parse_body` (returns `Box<RawValue>` for 19-digit-ID preservation), `parse_query_pairs`, `emit_list`, `emit_object`, `emit_action`, `emit_list_paginated` (NDJSON streaming).
-- `src/commands/common.rs` — `ListArgs`, `BodyArgs`, `CustomFieldUpdateArgs`, plus the request-building + emit shortcuts (`list`, `create`, `get`, `update`, `update_custom`, `delete`, `action`, `action_with_body`). Used by every domain module.
-- `src/commands/<module>.rs` — one module per Zoho v3 resource. Nested sub-apps are clap `Subcommand` enums under the module's `Sub` enum.
+Every `src/*.rs` has a `//!` doc-comment at the top describing its role — `head -10 src/*.rs` is the fastest orientation. The high-level shape:
+
+- `main.rs` → `cli.rs` (clap root + global options + `Ctx` + dispatch) → `commands/<module>.rs` (one per Zoho v3 resource) → `client.rs` (HTTP plumbing).
+- Credentials path: `auth.rs` (OAuth flow) + `storage.rs` (keyring/file) + `config.rs` (precedence merge).
+- Cross-cutting: `errors.rs`, `output.rs`, `regions.rs`, `uploads.rs`, `shared.rs`.
+- The kit at `commands/common.rs` (arg structs `ListArgs`/`BodyArgs`/`CustomFieldUpdateArgs` + request-building + emit shortcuts) is used by every domain module. Nested sub-apps are clap `Subcommand` enums under each module's `Sub` enum.
 
 ## Thin-wrapper rule
 
@@ -25,13 +23,7 @@ Each wrapped command is a 1:1 map onto a Zoho v3 endpoint, accepting:
 
 ## Response emission
 
-Route every response through one of these — don't invent new shapes.
-
-- `common::list(ctx, path, args, key)` — list endpoints; uses `shared::emit_list_paginated` for `--page-all` NDJSON streaming.
-- `common::emit_list_flat(resp, key, ctx)` — flat sub-resources without `page_context`.
-- `common::emit_object(resp, ctx)` — single-record GET/PUT/POST. Strips Zoho's `code`/`message`.
-- `common::emit_action(id_field, id_value, resp, ctx)` — verbs without a body (`delete`, `mark-active`, `stop`, ...).
-- `common::emit_success_raw(data, ctx)` — for composed commands that build their own envelope (attachments batch, downloads, etc.).
+Route every response through one of the helpers in `src/commands/common.rs` (`list`, `emit_list_flat`, `emit_object`, `emit_action`, `emit_success_raw`, ...) — each is documented in-source. Don't invent new envelope shapes; if the existing shapes don't fit, the new command is probably misshapen.
 
 ## Envelope keys: live-verify, don't guess
 
@@ -43,17 +35,18 @@ Zoho IDs are 19 digits, exceeding JS's `Number.MAX_SAFE_INTEGER`. The CLI never 
 
 **Constraint introduced by `arbitrary_precision`:** when the feature is on (it is — see `Cargo.toml`), `serde_json::Value::Number` is internally string-backed. `Number::as_i64()` / `as_u64()` / `as_f64()` and the corresponding `is_*` predicates may return `None` even for values that *would* fit in those types, because the internal representation is the source-text string, not a typed integer. **Production code must not use these accessors.** If you need a numeric value out of a response, parse it from `Number::to_string()` or use `Number::as_str()` (only available with `arbitrary_precision`). The codebase currently has zero `as_i64`/`as_u64`/`as_f64`/`is_i64`/`is_u64` call sites in `src/` (verified by `rg`); keep it that way.
 
-## Tests (`mockito` + `assert_cmd` + inline `#[cfg(test)]`)
+## Tests
 
-Pattern per command module:
+Inline `#[cfg(test)] mod tests` in each module. Mockito for HTTP; `MemoryStorage` (gated `#[cfg(test)]`) for credential fixtures. `Ctx::new_for_test(server_url)` and `Ctx::new_for_test_dry_run(server_url)` build a context wired to a mock server.
 
-- Inline `#[cfg(test)] mod tests` for plumbing-level checks. Use `MemoryStorage` (gated `#[cfg(test)]`) for fixtures.
-- `mockito::Server::new()` for HTTP mocking. `Client::with_api_override(server.url())` (also `#[cfg(test)]`) replaces the production API base URL; `Client::with_accounts_override(server.url())` replaces the OAuth refresh endpoint when you need to exercise the 401-refresh-retry state machine against a single mock server.
-- Each domain module has a `list_targets_<base>` test that asserts the BASE path is hit — these catch path-drift regressions but don't capture stdout, so they don't catch envelope-key drift on their own (the AGENTS.md "live-verify, don't guess" rule covers that).
-- Happy-path test asserting response shape and (for writes) wire body via `match_body`.
-- Header test on every `update-by-custom-field` (`X-Unique-Identifier-Key`/`-Value`, `X-Upsert`) — `client::tests::custom_headers_forwarded_to_request` covers the generic path.
-- Binary download tests (success + 404, no partial file written, parent dir not created on failure) are **not** yet implemented per-module; the underlying `Client::get_bytes` path is exercised by integration smoke. Add them with new download commands.
-- Action verbs: path hit + `data.<id_field>` round-trip.
+Coverage policy:
+
+- Plumbing-level invariants live in `src/client.rs`, `src/shared.rs`, `src/storage.rs`, `src/output.rs` tests. These catch the 17 invariants — 19-digit-ID preservation, 401-refresh-retry, dry-run scrubbing, etc. Read these as the executable spec.
+- Each domain module has one `list_targets_<base>` smoke that asserts the BASE path is hit. Catches path-drift; does NOT catch envelope-key drift (covered by the "live-verify, don't guess" rule).
+- Composed-command + per-iteration-error-handler loops need a DryRunOk-propagation regression test — see `commands::expenses::tests::attachments_add_dry_run_propagates_short_circuit` as the canonical example.
+- Binary-download tests (success + 404, no partial file written, parent dir not created on failure) are **not** yet implemented per-module. Add them with new download commands.
+
+For test overrides, see `Client::with_api_override` (replaces the API base URL) and `Client::with_accounts_override` (replaces the OAuth refresh endpoint, needed when exercising 401-refresh against a single mock server). Both are `#[cfg(test)]`-gated.
 
 `cargo test` stays green at every commit.
 

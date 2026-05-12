@@ -1,3 +1,8 @@
+//! Zoho data-center region table. Each region maps to an accounts URL
+//! (for OAuth) and an API URL (for /books/v3). `resolve()` normalizes
+//! input (lowercase + trim) and returns the static `Region` reference,
+//! or a `ValidationError` listing the valid codes for unknown input.
+
 use crate::errors::{Result, ZohoError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

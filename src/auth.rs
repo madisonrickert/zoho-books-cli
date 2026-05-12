@@ -1,3 +1,14 @@
+//! Zoho OAuth 2.0: loopback authorization-code flow + token exchange + refresh.
+//!
+//! `authorize()` runs the full interactive flow: binds a `tiny_http` server
+//! on port 8976, prints/opens the authorize URL, waits for the redirect, and
+//! exchanges the captured code for tokens via `exchange_code()`.
+//! `refresh_access_token()` (and the URL-overrideable variant
+//! `refresh_access_token_at()`, used by the client's 401-refresh path and by
+//! tests) trades a refresh token for a new access token.
+//!
+//! All four OAuth endpoints live under `<region.accounts_url>/oauth/v2/`.
+
 use std::io::Write as _;
 use std::time::{Duration, Instant};
 

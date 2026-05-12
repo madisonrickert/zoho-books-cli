@@ -143,7 +143,7 @@ zb expenses update EXP1 --body @updates.json
 zb expenses delete EXP1
 ```
 
-**Pass IDs as strings in `--body` JSON when downstream consumers will see them.** The CLI itself preserves them either way (request bodies go through `serde_json`'s `RawValue` so digit sequences reach the wire byte-perfect), but Zoho's 19-digit IDs exceed JavaScript's `Number.MAX_SAFE_INTEGER` and any JS consumer that re-parses the response will silently corrupt them. Quoting at the source avoids the foot-gun. See the [agent-user contract in `SKILL.md`](skills/zoho-books/SKILL.md#ids-must-be-strings-in---body-json) for the full rationale.
+**Quote 19-digit IDs as strings in `--body` JSON.** The CLI preserves them either way, but any JavaScript consumer that re-parses the response will silently corrupt anything past `Number.MAX_SAFE_INTEGER`. Quoting at the source avoids the foot-gun. See [`SKILL.md`](skills/zoho-books/SKILL.md#ids-must-be-strings-in---body-json) for the full rationale.
 
 ### Categorize a bank transaction
 
@@ -256,4 +256,4 @@ The CLI wraps a broad slice of the Zoho Books v3 API but does **not** cover all 
 - Contacts: 1099 tracking, portal/reminder toggles, statements-email, opening balance
 - Recurring expenses / invoices: anything beyond what's listed in the command groups above
 
-If one of these is blocking you, open an issue or wrap it locally — `src/commands/common.rs` plus the existing module patterns make it ~50 lines per CRUD surface. In the meantime: `zb raw <METHOD> <path>` reaches anything authenticated.
+If one of these is blocking you, open an issue. In the meantime: `zb raw <METHOD> <path>` reaches anything authenticated. (Contributors: see [`AGENTS.md`](AGENTS.md) for the pattern — wrapping a new resource is ~50 lines using `src/commands/common.rs`.)

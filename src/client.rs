@@ -1,3 +1,22 @@
+//! HTTP plumbing around `reqwest::blocking`. Owns `RuntimeConfig` + access
+//! token + storage handle (shared as `Arc<dyn Storage>` with the rest of
+//! the program). Responsibilities:
+//!
+//! - Region routing (`cfg.region.api_url` -> request URL).
+//! - `organization_id` auto-injection on every request unless
+//!   `RequestOptions.skip_org_id`.
+//! - 401 -> silent refresh -> retry-once. State carried in `RetryState`
+//!   so a second 401 after the refresh can't loop.
+//! - 429 -> up to 3 retries; honors numeric `Retry-After`, otherwise
+//!   exponential `min(2**n, 30)` backoff.
+//! - `--dry-run` short-circuit: emits a preview envelope to stdout
+//!   (with `Authorization` scrubbed) and returns `Err(DryRunOk)`.
+//! - Multipart upload path (separate `reqwest::blocking::Client` with a
+//!   longer timeout).
+//!
+//! Request bodies are sent as raw `Vec<u8>` (never `.json(...)`) so
+//! 19-digit Zoho IDs reach the wire byte-perfect.
+
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;

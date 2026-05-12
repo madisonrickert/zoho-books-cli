@@ -1,3 +1,6 @@
+//! `zb auth` — login (browser OAuth flow), status (report stored creds),
+//! refresh (force a token refresh), logout (clear storage).
+
 use std::io::{self, Write};
 use std::time::Duration;
 
