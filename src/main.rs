@@ -2,7 +2,9 @@ mod cli;
 mod commands;
 mod config;
 mod errors;
+mod output;
 mod regions;
+mod shared;
 mod storage;
 mod uploads;
 
