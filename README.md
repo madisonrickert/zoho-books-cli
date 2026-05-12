@@ -4,8 +4,9 @@
 
 [![CI](https://github.com/madisonrickert/zoho-books-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/madisonrickert/zoho-books-cli/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+[![Rust](https://img.shields.io/badge/rust-1.85%2B-blue.svg)](https://www.rust-lang.org)
+
+> **Upgrading from a Python 0.5.x install?** See [`MIGRATION.md`](MIGRATION.md). The binary name (`zb`), command surface, JSON envelopes, and stored credentials are unchanged — the migration is one `uv tool uninstall` + one `brew install`.
 
 Designed for AI agents and shell-scripted automation — Claude, ChatGPT, cron jobs, anything that can invoke a binary. Pair it with the [Zoho MCP server](https://mcp.zoho.com) for AI conveniences (full-text search, suggestions); reach for `zb` whenever:
 
@@ -35,28 +36,32 @@ zb --dry-run customer-payments update P1 --body '{"project_id":"..."}'
 
 ## Install
 
-Using [uv](https://docs.astral.sh/uv/) (recommended):
+Recommended on macOS: **Homebrew tap.**
 
 ```bash
-# Straight from GitHub
-uv tool install git+https://github.com/madisonrickert/zoho-books-cli
-
-# Or from a local checkout
-git clone https://github.com/madisonrickert/zoho-books-cli
-cd zoho-books-cli
-uv tool install .
+brew install madisonrickert/tap/zoho-books-cli
 ```
 
-Upgrade with `uv tool upgrade zoho-books-cli`; remove with `uv tool uninstall zoho-books-cli`.
+Upgrade with `brew upgrade madisonrickert/tap/zoho-books-cli`; remove with `brew uninstall madisonrickert/tap/zoho-books-cli`.
 
 <details>
-<summary>Alternative: pipx</summary>
+<summary>Alternative: cargo install --git</summary>
+
+If you already have a Rust toolchain (`rustup`):
 
 ```bash
-pipx install git+https://github.com/madisonrickert/zoho-books-cli
-# or editable from a clone:
-pipx install -e .
+cargo install --git https://github.com/madisonrickert/zoho-books-cli
 ```
+
+Re-run the same command to upgrade. Removes with `cargo uninstall zoho-books-cli`.
+
+</details>
+
+<details>
+<summary>Alternative: pre-built binaries</summary>
+
+Each release on [GitHub Releases](https://github.com/madisonrickert/zoho-books-cli/releases) ships pre-compiled binaries for macOS arm64, macOS x86_64, and Linux x86_64. Download the tarball for your platform and drop the `zb` binary into a directory on your `$PATH` (e.g. `/usr/local/bin` or `~/.local/bin`).
+
 </details>
 
 ## Authentication

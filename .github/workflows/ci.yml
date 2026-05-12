@@ -14,36 +14,27 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.11", "3.12", "3.13", "3.14"]
+        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v6
 
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
+          components: clippy, rustfmt
 
-      - name: Set up Python ${{ matrix.python }}
-        run: uv python install ${{ matrix.python }}
+      - name: Cache cargo registry + build
+        uses: Swatinem/rust-cache@v2
 
-      - name: Sync dependencies
-        run: uv sync --extra dev --python ${{ matrix.python }}
+      - name: cargo fmt --check
+        run: cargo fmt --check
 
-      - name: Ruff (lint)
-        run: uv run --python ${{ matrix.python }} ruff check
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
 
-      - name: Ruff (format check)
-        run: uv run --python ${{ matrix.python }} ruff format --check
-
-      - name: Pytest
-        run: uv run --python ${{ matrix.python }} pytest
-
-      - name: detect-secrets scan
-        run: |
-          uv run --python ${{ matrix.python }} detect-secrets scan --baseline .secrets.baseline
-          uv run --python ${{ matrix.python }} detect-secrets audit --diff .secrets.baseline .secrets.baseline || true
+      - name: cargo test
+        run: cargo test --all-targets
