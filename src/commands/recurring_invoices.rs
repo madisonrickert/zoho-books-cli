@@ -1,5 +1,8 @@
 use clap::{Args, Subcommand};
 
+use crate::cli::Ctx;
+use crate::errors::{Result, ZohoError};
+
 #[derive(Args, Debug)]
 pub struct Cmd {
     #[command(subcommand)]
@@ -12,7 +15,8 @@ pub enum Sub {
     Unimplemented,
 }
 
-pub fn run(_cmd: Cmd) {
-    eprintln!("zb: recurring-invoices not yet implemented in the Rust port");
-    std::process::exit(2);
+pub fn run(_cmd: Cmd, _ctx: &mut Ctx) -> Result<()> {
+    Err(ZohoError::validation(
+        "recurring-invoices not yet implemented in the Rust port",
+    ))
 }

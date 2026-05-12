@@ -22,6 +22,10 @@ pub enum ErrorKind {
     RateLimited,
     Network,
     Unknown,
+    /// Sentinel: a `--dry-run` preview has been emitted on stdout. The dispatch
+    /// layer in `main` treats this as success (exit 0) and suppresses error
+    /// envelope emission.
+    DryRunOk,
 }
 
 impl ErrorKind {
@@ -36,6 +40,7 @@ impl ErrorKind {
             Self::RateLimited => "rate_limited",
             Self::Network => "network",
             Self::Unknown => "unknown",
+            Self::DryRunOk => "dry_run_ok",
         }
     }
 
@@ -47,6 +52,7 @@ impl ErrorKind {
             Self::RateLimited => EXIT_RATE_LIMIT,
             Self::Network => EXIT_NETWORK,
             Self::Unknown => EXIT_UNKNOWN,
+            Self::DryRunOk => EXIT_SUCCESS,
         }
     }
 }

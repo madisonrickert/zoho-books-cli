@@ -1,11 +1,20 @@
-use clap::{Parser, Subcommand, ValueEnum};
+use std::io::{self, Write};
 
+use clap::{Parser, Subcommand, ValueEnum};
+use serde_json::json;
+
+use crate::client::Client;
 use crate::commands;
+use crate::config::{self, Overrides};
+use crate::errors::{ErrorKind, Result, ZohoError};
+use crate::output;
+use crate::storage::{RealStorage, Storage};
 
 #[derive(Parser, Debug)]
 #[command(
     name = "zb",
     version,
+    disable_version_flag = true,
     about = "Agent-first CLI for Zoho Books",
     long_about = "Thin 1:1 wrapper around Zoho Books v3, designed to be driven by Claude Code agents. JSON envelopes on stdout, JSON errors on stderr, stable exit codes."
 )]
@@ -21,6 +30,10 @@ pub struct Cli {
     /// Print the would-be HTTP request as JSON and exit; do not call Zoho
     #[arg(long, global = true)]
     pub dry_run: bool,
+
+    /// Show the CLI version as JSON and exit
+    #[arg(long)]
+    pub version: bool,
 
     /// Emit the full command tree as JSON and exit
     #[arg(long)]
@@ -76,29 +89,146 @@ pub enum Commands {
     ChartOfAccounts(commands::chart_of_accounts::Cmd),
 }
 
-pub fn run(cli: Cli) {
+/// Shared context every command receives. Holds the HTTP client (which carries
+/// the resolved RuntimeConfig + active access token), the underlying storage
+/// (for commands that persist state like `org use`), and the output format.
+pub struct Ctx {
+    pub client: Client,
+    pub storage: Box<dyn Storage>,
+    pub format: OutputFormat,
+}
+
+pub fn effective_format(cli: &Cli) -> OutputFormat {
+    if cli.pretty {
+        OutputFormat::Table
+    } else {
+        cli.format
+    }
+}
+
+pub fn run(cli: Cli) -> Result<()> {
+    let format = effective_format(&cli);
+
+    if cli.version {
+        let mut out = io::stdout().lock();
+        let data = json!({ "version": env!("CARGO_PKG_VERSION") });
+        output::emit_success(&data, format, &mut out)
+            .map_err(|e| ZohoError::network(format!("stdout write failed: {e}")))?;
+        return Ok(());
+    }
+
     if cli.list_commands {
-        println!("{{\"ok\": true, \"data\": {{\"commands\": []}}}}");
-        return;
+        let mut out = io::stdout().lock();
+        let manifest = list_commands_manifest();
+        let data = json!({ "commands": manifest });
+        output::emit_success(&data, format, &mut out)
+            .map_err(|e| ZohoError::network(format!("stdout write failed: {e}")))?;
+        return Ok(());
     }
-    match cli.command {
-        None => {
-            eprintln!("zb: no subcommand given. Try `zb --help`.");
-            std::process::exit(3);
+
+    let Some(command) = cli.command else {
+        eprintln!("zb: no subcommand given. Try `zb --help`.");
+        return Err(ZohoError::validation("no subcommand given"));
+    };
+
+    let mut ctx = build_ctx(cli.dry_run, format)?;
+
+    match command {
+        Commands::Auth(c) => commands::auth_cmd::run(c, &mut ctx),
+        Commands::Org(c) => commands::org::run(c, &mut ctx),
+        Commands::Raw(c) => commands::raw::run(c, &mut ctx),
+        Commands::Contacts(c) => commands::contacts::run(c, &mut ctx),
+        Commands::Expenses(c) => commands::expenses::run(c, &mut ctx),
+        Commands::Invoices(c) => commands::invoices::run(c, &mut ctx),
+        Commands::Bills(c) => commands::bills::run(c, &mut ctx),
+        Commands::Projects(c) => commands::projects::run(c, &mut ctx),
+        Commands::CustomerPayments(c) => commands::customer_payments::run(c, &mut ctx),
+        Commands::RecurringExpenses(c) => commands::recurring_expenses::run(c, &mut ctx),
+        Commands::RecurringInvoices(c) => commands::recurring_invoices::run(c, &mut ctx),
+        Commands::BankTransactions(c) => commands::bank_transactions::run(c, &mut ctx),
+        Commands::BankRules(c) => commands::bank_rules::run(c, &mut ctx),
+        Commands::ChartOfAccounts(c) => commands::chart_of_accounts::run(c, &mut ctx),
+    }
+}
+
+fn build_ctx(dry_run: bool, format: OutputFormat) -> Result<Ctx> {
+    let storage = RealStorage::new();
+    let cfg = config::load(&storage, &Overrides::default())?;
+    let storage_box: Box<dyn Storage> = Box::new(storage);
+    // The client needs its own Storage handle (for token refresh side effects).
+    // RealStorage is cheap to recreate; both refer to the same on-disk file +
+    // keyring slot.
+    let client_storage: Box<dyn Storage> = Box::new(RealStorage::new());
+    let client = Client::new(cfg, client_storage, dry_run, format)?;
+    Ok(Ctx {
+        client,
+        storage: storage_box,
+        format,
+    })
+}
+
+fn list_commands_manifest() -> Vec<serde_json::Value> {
+    use clap::CommandFactory;
+    let cmd = Cli::command();
+    let mut out = Vec::new();
+    walk_subcommands(&cmd, "", &mut out);
+    out
+}
+
+fn walk_subcommands(cmd: &clap::Command, prefix: &str, out: &mut Vec<serde_json::Value>) {
+    let mut subs: Vec<&clap::Command> =
+        cmd.get_subcommands().filter(|s| !s.is_hide_set()).collect();
+    subs.sort_by_key(|c| c.get_name().to_owned());
+    for sub in subs {
+        let name = sub.get_name();
+        let full = if prefix.is_empty() {
+            name.to_string()
+        } else {
+            format!("{prefix} {name}")
+        };
+        if sub.get_subcommands().any(|c| !c.is_hide_set()) {
+            walk_subcommands(sub, &full, out);
+        } else {
+            let summary = sub
+                .get_about()
+                .map(|s| s.to_string())
+                .or_else(|| sub.get_long_about().map(|s| s.to_string()))
+                .unwrap_or_default()
+                .lines()
+                .next()
+                .unwrap_or("")
+                .to_string();
+            let params: Vec<serde_json::Value> = sub
+                .get_arguments()
+                .filter(|a| !a.is_hide_set())
+                .map(|a| {
+                    json!({
+                        "name": a.get_id().as_str(),
+                        "kind": if a.is_positional() { "argument" } else { "option" },
+                        "required": a.is_required_set(),
+                        "opts": a.get_long_and_visible_aliases().unwrap_or_default()
+                            .into_iter()
+                            .map(|s| format!("--{s}"))
+                            .collect::<Vec<_>>(),
+                        "help": a.get_help().map(|s| s.to_string()),
+                    })
+                })
+                .collect();
+            out.push(json!({
+                "name": full,
+                "summary": summary,
+                "params": params,
+            }));
         }
-        Some(Commands::Auth(c)) => commands::auth_cmd::run(c),
-        Some(Commands::Org(c)) => commands::org::run(c),
-        Some(Commands::Raw(c)) => commands::raw::run(c),
-        Some(Commands::Contacts(c)) => commands::contacts::run(c),
-        Some(Commands::Expenses(c)) => commands::expenses::run(c),
-        Some(Commands::Invoices(c)) => commands::invoices::run(c),
-        Some(Commands::Bills(c)) => commands::bills::run(c),
-        Some(Commands::Projects(c)) => commands::projects::run(c),
-        Some(Commands::CustomerPayments(c)) => commands::customer_payments::run(c),
-        Some(Commands::RecurringExpenses(c)) => commands::recurring_expenses::run(c),
-        Some(Commands::RecurringInvoices(c)) => commands::recurring_invoices::run(c),
-        Some(Commands::BankTransactions(c)) => commands::bank_transactions::run(c),
-        Some(Commands::BankRules(c)) => commands::bank_rules::run(c),
-        Some(Commands::ChartOfAccounts(c)) => commands::chart_of_accounts::run(c),
     }
+}
+
+pub fn emit_dispatch_error(err: &ZohoError, format: OutputFormat) {
+    let mut stderr = io::stderr().lock();
+    let _ = output::emit_error(&err.to_envelope(), format, &mut stderr);
+    let _ = stderr.flush();
+}
+
+pub fn is_dry_run_ok(err: &ZohoError) -> bool {
+    matches!(err.kind, ErrorKind::DryRunOk)
 }
