@@ -1,5 +1,10 @@
 mod cli;
 mod commands;
+mod config;
+mod errors;
+mod regions;
+mod storage;
+mod uploads;
 
 use clap::Parser;
 
