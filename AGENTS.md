@@ -41,6 +41,8 @@ When wrapping a new surface, **call the endpoint live** against a real Zoho org 
 
 Zoho IDs are 19 digits, exceeding JS's `Number.MAX_SAFE_INTEGER`. The CLI never coerces them. In Rust, `--body` is parsed into a `serde_json::value::RawValue` so the original bytes are passed through to the wire unchanged. Composed commands that must mutate the body before sending use `serde_json` with the `arbitrary_precision` feature and only read string/raw fields. **Every `create` / `update` path is covered by the wire-level 19-digit-ID test in `client::tests::nineteen_digit_id_in_post_body_preserved_on_wire`**; new commands inherit that guarantee by going through `client::Client::post`/`put` rather than building requests by hand.
 
+**Constraint introduced by `arbitrary_precision`:** when the feature is on (it is — see `Cargo.toml`), `serde_json::Value::Number` is internally string-backed. `Number::as_i64()` / `as_u64()` / `as_f64()` and the corresponding `is_*` predicates may return `None` even for values that *would* fit in those types, because the internal representation is the source-text string, not a typed integer. **Production code must not use these accessors.** If you need a numeric value out of a response, parse it from `Number::to_string()` or use `Number::as_str()` (only available with `arbitrary_precision`). The codebase currently has zero `as_i64`/`as_u64`/`as_f64`/`is_i64`/`is_u64` call sites in `src/` (verified by `rg`); keep it that way.
+
 ## Tests (`mockito` + `assert_cmd` + inline `#[cfg(test)]`)
 
 Pattern per command module:
@@ -77,7 +79,7 @@ The 17 invariants enumerated in the original port plan ([`bench/cli-latency/RESU
 6. Region URL map.
 7. Loopback port 8976.
 8. `organization_id` auto-injection on every request that's not `skip_org_id`.
-9. 401 → silent refresh → retry-once. 429 → up to 3 retries, exponential backoff, honor `Retry-After`.
+9. 401 → silent refresh → retry-once. 429 → up to 3 retries, exponential backoff, **numeric `Retry-After` honored** (HTTP-date form is not parsed and falls through to backoff — Zoho's docs don't specify either form; see `parse_retry_after` docstring in `client.rs`).
 10. Multipart validation (pdf/jpg/jpeg/png/gif; 10 MB cap).
 11. 19-digit-ID preservation via `RawValue` pass-through.
 12. `--dry-run` short-circuits before any HTTP send and scrubs `Authorization`. Composed commands (one CLI call, multiple internal client calls) must exit at the FIRST internal call — see "DryRunOk propagation" below.
@@ -98,7 +100,7 @@ The pattern is one match arm:
 ```rust
 match upload_one(...) {
     Ok(resp) => { /* store result */ }
-    Err(e) if crate::errors::ErrorKind::DryRunOk == e.kind => return Err(e),
+    Err(e) if matches!(e.kind, crate::errors::ErrorKind::DryRunOk) => return Err(e),
     Err(e) => { /* store fake-failure result */ }
 }
 ```

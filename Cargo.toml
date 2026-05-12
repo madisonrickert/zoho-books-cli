@@ -19,6 +19,10 @@ exclude = [
     "bench/",
     ".github/",
     "skills/",
+    "scripts/",
+    ".pre-commit-config.yaml",
+    ".python-version",
+    ".secrets.baseline",
     "MIGRATION.md",
     "CONTRIBUTING.md",
 ]

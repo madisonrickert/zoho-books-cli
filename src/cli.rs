@@ -139,6 +139,38 @@ impl Ctx {
             format: OutputFormat::Json,
         }
     }
+
+    /// Like `new_for_test`, but with `dry_run = true`. Used to verify that
+    /// composed commands which loop with per-iteration error handlers
+    /// propagate `DryRunOk` and short-circuit (invariants 12 + 14).
+    #[cfg(test)]
+    pub fn new_for_test_dry_run(server_url: &str) -> Self {
+        use crate::storage::MemoryStorage;
+        let region = crate::regions::resolve("us").unwrap();
+        let cfg = crate::config::RuntimeConfig {
+            region,
+            org_id: Some("123".into()),
+            client_id: Some("cid".into()),
+            client_secret: Some("csec".into()),
+            refresh_token: Some("rt".into()),
+            access_token: Some("at".into()),
+            expires_at: Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs_f64() + 3600.0)
+                    .unwrap_or(3600.0),
+            ),
+        };
+        let storage: Arc<dyn Storage> = Arc::new(MemoryStorage::new());
+        let client = Client::new(cfg, Arc::clone(&storage), true, OutputFormat::Json)
+            .unwrap()
+            .with_api_override(server_url);
+        Ctx {
+            client,
+            storage,
+            format: OutputFormat::Json,
+        }
+    }
 }
 
 pub fn effective_format(cli: &Cli) -> OutputFormat {

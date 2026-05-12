@@ -231,7 +231,7 @@ fn attachments_add(args: AttachmentsAddArgs, ctx: &mut Ctx) -> Result<()> {
             // stdout. Propagate it to short-circuit the loop (invariant 12: dry-run
             // exits at the FIRST internal call) and avoid a second stdout write
             // from emit_success_raw (invariant 14: stdout exactly once).
-            Err(e) if crate::errors::ErrorKind::DryRunOk == e.kind => return Err(e),
+            Err(e) if matches!(e.kind, crate::errors::ErrorKind::DryRunOk) => return Err(e),
             Err(e) => {
                 entry.insert("ok".into(), Value::Bool(false));
                 entry.insert(
@@ -289,5 +289,52 @@ mod tests {
         )
         .unwrap();
         m.assert();
+    }
+
+    /// Regression test for the bug caught by the first code review (Critical
+    /// #1): composed commands with per-iteration error handlers must propagate
+    /// `DryRunOk` and short-circuit, not catch it as a fake upload failure.
+    ///
+    /// Without the `Err(e) if e.kind == ErrorKind::DryRunOk => return Err(e)`
+    /// match arm, the loop would catch DryRunOk on the first file, store a
+    /// fake-failure result, continue to the second file (which would also
+    /// emit a preview to stdout and produce a fake-failure), and then
+    /// `emit_success_raw` would write a third envelope. Three stdout writes
+    /// instead of one preview; function returns Ok(()) instead of Err.
+    ///
+    /// This test exercises only the expenses module; bills and invoices use
+    /// the same canonical pattern and are covered by reviewer eyes + the
+    /// AGENTS.md "DryRunOk propagation" rule.
+    #[test]
+    fn attachments_add_dry_run_propagates_short_circuit() {
+        use crate::errors::ErrorKind;
+        use std::fs;
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().unwrap();
+        let f1 = tmp.path().join("a.pdf");
+        let f2 = tmp.path().join("b.pdf");
+        // uploads::validate only inspects extension + size, so the body bytes
+        // can be arbitrary.
+        fs::write(&f1, b"%PDF-1.4\nfake-pdf-a").unwrap();
+        fs::write(&f2, b"%PDF-1.4\nfake-pdf-b").unwrap();
+
+        // dry-run Ctx: any HTTP send would error (mock server URL is unreachable),
+        // so the only way this test passes is if the dry-run preview path
+        // short-circuits before any send.
+        let mut ctx = Ctx::new_for_test_dry_run("http://127.0.0.1:1");
+        let args = AttachmentsAddArgs {
+            expense_id: "e1".into(),
+            files: vec![f1, f2],
+        };
+        let err = attachments_add(args, &mut ctx).expect_err(
+            "attachments_add must return Err(DryRunOk) on the first file, \
+             not iterate to the second and Ok-return after",
+        );
+        assert!(
+            matches!(err.kind, ErrorKind::DryRunOk),
+            "expected DryRunOk, got {:?}",
+            err.kind
+        );
     }
 }

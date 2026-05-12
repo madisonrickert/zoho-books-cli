@@ -214,7 +214,7 @@ fn attachments_add(args: AttachmentsAddArgs, ctx: &mut Ctx) -> Result<()> {
                 entry.insert("response".into(), resp);
             }
             // DryRunOk is a sentinel — propagate to short-circuit. Invariant 12 + 14.
-            Err(e) if crate::errors::ErrorKind::DryRunOk == e.kind => return Err(e),
+            Err(e) if matches!(e.kind, crate::errors::ErrorKind::DryRunOk) => return Err(e),
             Err(e) => {
                 entry.insert("ok".into(), Value::Bool(false));
                 entry.insert(
