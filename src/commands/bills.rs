@@ -166,7 +166,8 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
         }
         Sub::Payments(p) => match p.sub {
             PaymentsSub::List(args) => {
-                common::nested_list(ctx, BASE, &args.bill_id, "payments", &args.list, "payments")
+                let path = format!("{BASE}/{}/payments", args.bill_id);
+                common::list(ctx, &path, &args.list, "payments")
             }
             PaymentsSub::Apply(args) => {
                 let path = format!("{BASE}/{}/payments", args.bill_id);
@@ -179,7 +180,8 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
         },
         Sub::Comments(c) => match c.sub {
             CommentsSub::List(args) => {
-                common::nested_list(ctx, BASE, &args.bill_id, "comments", &args.list, "comments")
+                let path = format!("{BASE}/{}/comments", args.bill_id);
+                common::list(ctx, &path, &args.list, "comments")
             }
         },
         Sub::Attachments(a) => match a.sub {

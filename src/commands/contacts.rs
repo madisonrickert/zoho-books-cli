@@ -164,14 +164,10 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
             let path = format!("{BASE}/{}/inactive", args.contact_id);
             common::action(ctx, &path, ID, &args.contact_id)
         }
-        Sub::Comments(args) => common::nested_list(
-            ctx,
-            BASE,
-            &args.contact_id,
-            "comments",
-            &args.list,
-            "comments",
-        ),
+        Sub::Comments(args) => {
+            let path = format!("{BASE}/{}/comments", args.contact_id);
+            common::list(ctx, &path, &args.list, "comments")
+        }
         Sub::Addresses(a) => match a.sub {
             AddressesSub::List(args) => {
                 let path = format!("{BASE}/{}/address", args.contact_id);

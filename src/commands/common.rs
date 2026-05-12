@@ -145,20 +145,6 @@ pub fn list(ctx: &mut Ctx, path: &str, args: &ListArgs, collection_key: &str) ->
     Ok(())
 }
 
-/// `nested_list(ctx, "/parents", &parent_id, "children", &args, "children")` →
-/// list at `/parents/{parent_id}/children` returning the `children` key.
-pub fn nested_list(
-    ctx: &mut Ctx,
-    base: &str,
-    parent_id: &str,
-    sub_path: &str,
-    args: &ListArgs,
-    collection_key: &str,
-) -> Result<()> {
-    let path = format!("{base}/{parent_id}/{sub_path}");
-    list(ctx, &path, args, collection_key)
-}
-
 pub fn create(ctx: &mut Ctx, path: &str, args: &BodyArgs) -> Result<()> {
     let opts = RequestOptions {
         query: args.build_query()?,

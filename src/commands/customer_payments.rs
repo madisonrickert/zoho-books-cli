@@ -107,14 +107,10 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
             common::delete(ctx, &path, "payment_id", &args.payment_id)
         }
         Sub::Refunds(r) => match r.sub {
-            RefundsSub::List(args) => common::nested_list(
-                ctx,
-                BASE,
-                &args.payment_id,
-                "refunds",
-                &args.list,
-                "payment_refunds",
-            ),
+            RefundsSub::List(args) => {
+                let path = format!("{BASE}/{}/refunds", args.payment_id);
+                common::list(ctx, &path, &args.list, "payment_refunds")
+            }
             RefundsSub::Create(args) => {
                 let path = format!("{BASE}/{}/refunds", args.payment_id);
                 common::create(ctx, &path, &args.body)

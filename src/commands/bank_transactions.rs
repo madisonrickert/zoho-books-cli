@@ -151,14 +151,10 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
             let path = format!("{UNCAT_PREFIX}/{}/match", args.transaction_id);
             common::action_with_body(ctx, &path, &args.body, TID, &args.transaction_id)
         }
-        Sub::Matches(args) => common::nested_list(
-            ctx,
-            UNCAT_PREFIX,
-            &args.transaction_id,
-            "match",
-            &args.list,
-            "matching_transactions",
-        ),
+        Sub::Matches(args) => {
+            let path = format!("{UNCAT_PREFIX}/{}/match", args.transaction_id);
+            common::list(ctx, &path, &args.list, "matching_transactions")
+        }
         Sub::Unmatch(args) => {
             let path = format!("{BASE}/{}/unmatch", args.transaction_id);
             common::action(ctx, &path, TID, &args.transaction_id)

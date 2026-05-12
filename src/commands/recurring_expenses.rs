@@ -84,14 +84,10 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
             let path = format!("{BASE}/{}/status/resume", args.recurring_expense_id);
             common::action(ctx, &path, ID_FIELD, &args.recurring_expense_id)
         }
-        Sub::Children(args) => common::nested_list(
-            ctx,
-            BASE,
-            &args.recurring_expense_id,
-            "expenses",
-            &args.list,
-            "expenses",
-        ),
+        Sub::Children(args) => {
+            let path = format!("{BASE}/{}/expenses", args.recurring_expense_id);
+            common::list(ctx, &path, &args.list, "expenses")
+        }
         Sub::History(args) => {
             let path = format!("{BASE}/{}/comments", args.recurring_expense_id);
             let resp = ctx.client.get(&path, &crate::shared::Query::new())?;
