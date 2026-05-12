@@ -61,6 +61,13 @@ jobs:
         with:
           key: ${{ matrix.target }}
 
+      # `dbus-secret-service-keyring-store` (Linux keyring backend) links
+      # against the system `libdbus-1` library via pkg-config. The
+      # `ubuntu-latest` runner does not ship the dev headers.
+      - name: Install Linux system deps
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+
       - name: Build release binary
         run: cargo build --release --target ${{ matrix.target }}
 
