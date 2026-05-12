@@ -25,6 +25,10 @@ htmlcov/
 dist/
 build/
 
+# Rust
+target/
+**/*.rs.bk
+
 # Editors / OS
 .DS_Store
 .idea/

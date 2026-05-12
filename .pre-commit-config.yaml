@@ -1,10 +1,10 @@
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.9
+  - repo: https://github.com/doublify/pre-commit-rust
+    rev: v1.0
     hooks:
-      - id: ruff
-        args: [--fix]
-      - id: ruff-format
+      - id: fmt
+      - id: clippy
+        args: ["--all-targets", "--", "-D", "warnings"]
 
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
@@ -32,4 +32,4 @@ repos:
         language: system
         # Path-based match so .jsonl / .ndjson are covered (pre-commit's
         # `identify` library does not classify them as a known type).
-        files: '\.(py|json|jsonl|ndjson|yaml|yml|md|toml|txt|cfg|ini)$'
+        files: '\.(py|rs|json|jsonl|ndjson|yaml|yml|md|toml|txt|cfg|ini)$'

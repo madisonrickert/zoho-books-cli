@@ -7,61 +7,102 @@ on:
 
 permissions:
   contents: write  # for GitHub release
-  id-token: write  # for PyPI trusted publishing
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  build:
+  # Validate that the tag matches the Cargo.toml version before kicking off
+  # cross-compile jobs that take ~5 minutes apiece.
+  verify-version:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-
-      - name: Set up uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          enable-cache: true
-          cache-dependency-glob: "uv.lock"
-
-      - name: Verify tag matches pyproject version
+      - name: Verify tag matches Cargo.toml version
         id: version
         run: |
           tag_version="${GITHUB_REF_NAME#v}"
-          pkg_version="$(uv run python -c 'import tomllib,sys;print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
+          pkg_version="$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
           if [ "$tag_version" != "$pkg_version" ]; then
-            echo "::error::Tag v$tag_version does not match pyproject version $pkg_version"
+            echo "::error::Tag v$tag_version does not match Cargo.toml version $pkg_version"
             exit 1
           fi
           echo "version=$tag_version" >> "$GITHUB_OUTPUT"
 
-      - name: Build sdist and wheel
-        run: uv build
+  build:
+    needs: verify-version
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            archive: tar.gz
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            archive: tar.gz
+    steps:
+      - uses: actions/checkout@v6
 
-      - name: Upload dist artifacts
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry + build
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package archive
+        id: pkg
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          name="zb-${version}-${{ matrix.target }}"
+          mkdir -p "$name"
+          cp target/${{ matrix.target }}/release/zb "$name/"
+          cp README.md LICENSE "$name/"
+          tar -czf "$name.tar.gz" "$name"
+          shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+          echo "archive=$name.tar.gz" >> "$GITHUB_OUTPUT"
+          echo "sha=$name.tar.gz.sha256" >> "$GITHUB_OUTPUT"
+
+      - name: Upload archive artifact
         uses: actions/upload-artifact@v7
         with:
-          name: dist
-          path: dist/
+          name: zb-${{ matrix.target }}
+          path: |
+            ${{ steps.pkg.outputs.archive }}
+            ${{ steps.pkg.outputs.sha }}
           if-no-files-found: error
           retention-days: 7
 
   github-release:
-    needs: build
+    needs: [verify-version, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
 
-      - name: Download dist artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v8
         with:
-          name: dist
-          path: dist/
+          path: artifacts/
+
+      - name: Flatten artifact layout
+        run: |
+          mkdir -p dist
+          find artifacts/ -name 'zb-*.tar.gz*' -exec cp {} dist/ \;
+          ls -la dist/
 
       - name: Create GitHub release
         env:
@@ -70,25 +111,74 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
+            --notes-file <(echo "Pre-built binaries below. See [MIGRATION.md](https://github.com/${{ github.repository }}/blob/main/MIGRATION.md) if upgrading from Python 0.5.x.") \
             dist/*
 
-  # PyPI publishing via Trusted Publishing (OIDC, no tokens).
-  # To enable: on PyPI go to your project → Publishing → add a trusted publisher for
-  #   owner: madisonrickert, repository: zoho-books-cli, workflow: release.yml
-  # Then remove the `if: false` guard below and push a new tag.
-  pypi-publish:
-    needs: build
-    if: false
+  # Updates the Homebrew tap formula at madisonrickert/homebrew-tap.
+  # Requires the HOMEBREW_TAP_TOKEN repo secret (a PAT with `contents:write`
+  # scope on the tap repo). To set up: create the tap repo, generate a fine-
+  # grained PAT scoped to that repo, add it as HOMEBREW_TAP_TOKEN here.
+  brew-tap:
+    needs: [verify-version, github-release]
+    if: ${{ vars.HOMEBREW_TAP_ENABLED == 'true' }}
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/project/zoho-books-cli/
     steps:
-      - name: Download dist artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: dist
-          path: dist/
+      - name: Compute formula
+        id: formula
+        env:
+          VERSION: ${{ needs.verify-version.outputs.version }}
+        run: |
+          arm_url="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/zb-${VERSION}-aarch64-apple-darwin.tar.gz"
+          x86_url="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/zb-${VERSION}-x86_64-apple-darwin.tar.gz"
+          linux_url="https://github.com/${{ github.repository }}/releases/download/v${VERSION}/zb-${VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          arm_sha=$(curl -sL "${arm_url}.sha256" | awk '{print $1}')
+          x86_sha=$(curl -sL "${x86_url}.sha256" | awk '{print $1}')
+          linux_sha=$(curl -sL "${linux_url}.sha256" | awk '{print $1}')
+          cat <<RUBY > Formula.rb
+          class ZohoBooksCli < Formula
+            desc "Agent-first CLI for Zoho Books"
+            homepage "https://github.com/${{ github.repository }}"
+            version "${VERSION}"
 
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+            on_macos do
+              on_arm do
+                url "${arm_url}"
+                sha256 "${arm_sha}"
+              end
+              on_intel do
+                url "${x86_url}"
+                sha256 "${x86_sha}"
+              end
+            end
+
+            on_linux do
+              url "${linux_url}"
+              sha256 "${linux_sha}"
+            end
+
+            def install
+              bin.install "zb"
+            end
+
+            test do
+              assert_match "version", shell_output("#{bin}/zb --version")
+            end
+          end
+          RUBY
+          echo "formula path: Formula.rb"
+
+      - name: Push formula to tap repo
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ needs.verify-version.outputs.version }}
+        run: |
+          gh auth setup-git
+          git clone "https://github.com/madisonrickert/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          mv Formula.rb tap/Formula/zoho-books-cli.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/zoho-books-cli.rb
+          git commit -m "zoho-books-cli ${VERSION}"
+          git push
