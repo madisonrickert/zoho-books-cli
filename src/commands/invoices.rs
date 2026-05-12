@@ -286,17 +286,21 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
             ),
         },
         Sub::Payments(p) => match p.sub {
-            PaymentsSub::List(args) => common::list(
+            PaymentsSub::List(args) => common::nested_list(
                 ctx,
-                &format!("{BASE}/{}/payments", args.invoice_id),
+                BASE,
+                &args.invoice_id,
+                "payments",
                 &args.list,
                 "payments",
             ),
         },
         Sub::Credits(c) => match c.sub {
-            CreditsSub::List(args) => common::list(
+            CreditsSub::List(args) => common::nested_list(
                 ctx,
-                &format!("{BASE}/{}/creditsapplied", args.invoice_id),
+                BASE,
+                &args.invoice_id,
+                "creditsapplied",
                 &args.list,
                 "credits",
             ),
@@ -314,9 +318,11 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
             }
         },
         Sub::Comments(c) => match c.sub {
-            CommentsSub::List(args) => common::list(
+            CommentsSub::List(args) => common::nested_list(
                 ctx,
-                &format!("{BASE}/{}/comments", args.invoice_id),
+                BASE,
+                &args.invoice_id,
+                "comments",
                 &args.list,
                 "comments",
             ),

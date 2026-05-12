@@ -208,10 +208,14 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
             let resp = ctx.client.post(&path, opts)?;
             common::emit_object(&resp, ctx)
         }
-        Sub::Invoices(args) => {
-            let path = format!("{BASE}/{}/invoices", args.project_id);
-            common::list(ctx, &path, &args.list, "invoices")
-        }
+        Sub::Invoices(args) => common::nested_list(
+            ctx,
+            BASE,
+            &args.project_id,
+            "invoices",
+            &args.list,
+            "invoices",
+        ),
         Sub::Users(u) => match u.sub {
             UsersSub::List(args) => {
                 let path = format!("{BASE}/{}/users", args.project_id);
@@ -246,8 +250,7 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
             // Zoho returns singular "task" key for the list endpoint —
             // verified live in Python; preserved here.
             TasksSub::List(args) => {
-                let path = format!("{BASE}/{}/tasks", args.project_id);
-                common::list(ctx, &path, &args.list, "task")
+                common::nested_list(ctx, BASE, &args.project_id, "tasks", &args.list, "task")
             }
             TasksSub::Get(args) => common::get(
                 ctx,
@@ -269,10 +272,14 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
             }
         },
         Sub::Comments(c) => match c.sub {
-            CommentsSub::List(args) => {
-                let path = format!("{BASE}/{}/comments", args.project_id);
-                common::list(ctx, &path, &args.list, "comments")
-            }
+            CommentsSub::List(args) => common::nested_list(
+                ctx,
+                BASE,
+                &args.project_id,
+                "comments",
+                &args.list,
+                "comments",
+            ),
             CommentsSub::Add(args) => common::create(
                 ctx,
                 &format!("{BASE}/{}/comments", args.project_id),
