@@ -35,7 +35,6 @@ path = "src/main.rs"
 clap = { version = "4", features = ["derive", "wrap_help", "env"] }
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls", "webpki-roots", "multipart", "json", "form", "query"] }
 tiny_http = "0.12"
-keyring = "4"
 keyring-core = "1"
 dirs = "6"
 serde = { version = "1", features = ["derive"] }
@@ -46,6 +45,18 @@ thiserror = "2"
 tempfile = "3"
 url = "2"
 rand = "0.10"
+
+# Platform-specific keyring backends. Per the keyring-rs README, applications
+# shouldn't depend on the `keyring` crate directly (it's now sample code that
+# bundles every backend, including SQLite/turso which we don't use). Instead
+# we pull only the per-platform store we need. The macOS store uses its
+# `keychain` feature module for v3-compatible storage shape — required for
+# drop-in reads of credentials written by the Python implementation.
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["keychain"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+dbus-secret-service-keyring-store = "1"
 
 [dev-dependencies]
 mockito = "1"

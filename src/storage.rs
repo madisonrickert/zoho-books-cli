@@ -86,16 +86,33 @@ pub fn default_file_path() -> PathBuf {
         .join("credentials.json")
 }
 
-/// In keyring v4 a default store must be activated before any `Entry` use.
-/// `not_keyutils = true` selects Secret Service on Linux (instead of the
-/// kernel keyutils backend), matching Python's `keyring` library default —
-/// important for the drop-in canary where the Rust binary must read a
-/// Python-written keyring entry.
+/// `keyring-core` requires a default credential store be activated before any
+/// `Entry` is used. We do this once per process via `std::sync::Once`,
+/// selecting the platform-appropriate store at compile time:
+///
+/// - macOS: `apple-native-keyring-store`'s `keychain` module — stores via the
+///   Security framework, the same shape Python's `keyring` library used. This
+///   is what makes the drop-in canary work (Rust reads a Python-written entry).
+/// - Linux: `dbus-secret-service-keyring-store` — D-Bus Secret Service, also
+///   what Python's `keyring` defaults to on Linux for the same reason.
+/// - Other targets: the keyring path becomes a no-op and the file fallback
+///   handles all storage.
 fn ensure_keyring_init() {
     use std::sync::Once;
     static INIT: Once = Once::new();
     INIT.call_once(|| {
-        let _ = keyring::use_native_store(true);
+        #[cfg(target_os = "macos")]
+        {
+            if let Ok(store) = apple_native_keyring_store::keychain::Store::new() {
+                keyring_core::set_default_store(store);
+            }
+        }
+        #[cfg(target_os = "linux")]
+        {
+            if let Ok(store) = dbus_secret_service_keyring_store::Store::new() {
+                keyring_core::set_default_store(store);
+            }
+        }
     });
 }
 
