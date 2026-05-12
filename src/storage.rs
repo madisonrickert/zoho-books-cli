@@ -1,9 +1,8 @@
-#![allow(dead_code)] // Plumbing module; consumers are auth.rs + config.rs + commands.
-
 use std::fs;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+#[cfg(test)]
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
@@ -51,6 +50,7 @@ impl RealStorage {
         }
     }
 
+    #[cfg(test)]
     pub fn with_file_path(file_path: PathBuf) -> Self {
         Self {
             file_path,
@@ -145,11 +145,13 @@ impl Storage for RealStorage {
     }
 }
 
+#[cfg(test)]
 #[derive(Default)]
 pub struct MemoryStorage {
     inner: Mutex<Option<Credentials>>,
 }
 
+#[cfg(test)]
 impl MemoryStorage {
     pub fn new() -> Self {
         Self::default()
@@ -162,6 +164,7 @@ impl MemoryStorage {
     }
 }
 
+#[cfg(test)]
 impl Storage for MemoryStorage {
     fn load(&self) -> Result<Option<Credentials>> {
         Ok(self.inner.lock().unwrap().clone())

@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Plumbing module; consumers are commands.
-
 use std::io::Write;
 use std::path::PathBuf;
 use std::thread;
@@ -69,12 +67,6 @@ impl ResponseBody {
     }
 }
 
-/// Override for unit tests: replace the API base URL so mockito can intercept.
-#[derive(Debug, Clone)]
-pub struct ApiOverride {
-    pub base_url: String,
-}
-
 pub struct Client {
     pub cfg: RuntimeConfig,
     storage: Box<dyn Storage>,
@@ -115,17 +107,10 @@ impl Client {
     }
 
     /// Test helper: replace the API base URL. Production code never calls this.
+    #[cfg(test)]
     pub fn with_api_override(mut self, base: impl Into<String>) -> Self {
         self.override_base = Some(base.into());
         self
-    }
-
-    pub fn dry_run(&self) -> bool {
-        self.dry_run
-    }
-
-    pub fn format(&self) -> OutputFormat {
-        self.format
     }
 
     pub fn get(&mut self, path: &str, query: &Query) -> Result<Value> {

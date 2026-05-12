@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Plumbing module; consumers are auth.rs + client.rs + commands.
-
 use std::env;
 
 use crate::errors::{Result, ZohoError};

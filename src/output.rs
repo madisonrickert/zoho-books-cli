@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Plumbing module; consumers are commands + shared.rs.
-
 use std::io::{self, Write};
 
 use serde_json::{Value, json};

@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Plumbing module; consumers are commands + client.rs.
-
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::{self, Write};

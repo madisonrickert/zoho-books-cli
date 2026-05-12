@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Plumbing module; consumer is client.rs multipart path.
-
 use std::path::Path;
 
 use serde_json::json;

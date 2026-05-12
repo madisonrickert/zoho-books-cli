@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Plumbing module; full consumer set lands with auth.rs + client.rs.
-
 use serde_json::{Value, json};
 use thiserror::Error;
 

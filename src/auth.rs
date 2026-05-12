@@ -1,10 +1,9 @@
-#![allow(dead_code)] // Plumbing module; consumers are commands::auth_cmd + client.rs.
-
 use std::io::Write as _;
 use std::time::{Duration, Instant};
 
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::Value;
+use serde_json::json;
 
 use crate::errors::{Result, ZohoError};
 use crate::regions::Region;
@@ -79,13 +78,6 @@ struct CapturedParams(std::collections::BTreeMap<String, String>);
 impl CapturedParams {
     fn get(&self, key: &str) -> Option<&String> {
         self.0.get(key)
-    }
-    fn as_json(&self) -> Value {
-        let mut obj = serde_json::Map::new();
-        for (k, v) in &self.0 {
-            obj.insert(k.clone(), Value::String(v.clone()));
-        }
-        Value::Object(obj)
     }
 }
 

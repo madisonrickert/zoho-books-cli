@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Plumbing module; consumer is client.rs.
-
 use crate::errors::{Result, ZohoError};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,10 +63,6 @@ pub fn resolve(code: &str) -> Result<&'static Region> {
             valid.join(", ")
         ))
     })
-}
-
-pub fn all() -> impl Iterator<Item = &'static Region> {
-    REGIONS.iter()
 }
 
 #[cfg(test)]
