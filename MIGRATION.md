@@ -70,6 +70,18 @@ zb org list      # should succeed against your existing org
   failures. The `details.message` field includes the panic location for
   debugging.
 
+## What `uv tool upgrade` does now
+
+`uv tool upgrade zoho-books-cli` (or a fresh `uv tool install git+https://github.com/madisonrickert/zoho-books-cli` against the default branch) installs a **deprecation shim** — version 0.6.0, no dependencies, no real CLI. Running `zb` after that prints:
+
+```json
+{"ok":false,"error":{"code":"deprecated_install","message":"zoho-books-cli has moved from Python to a single Rust binary as of v1.0.0...","details":{"install_commands":{"homebrew":"brew install madisonrickert/tap/zoho-books-cli","cargo":"cargo install --git https://github.com/madisonrickert/zoho-books-cli","github_releases":"..."},...}}}
+```
+
+and exits 78 (`EX_CONFIG` from sysexits.h, distinct from the normal exit-code table). That's the signal to follow the transition steps above.
+
+If you want the old Python 0.5.0 CLI to keep working unchanged for now, pin to that tag: `uv tool install 'git+https://github.com/madisonrickert/zoho-books-cli@v0.5.0'`. The 0.5.0 tag is preserved indefinitely and will keep installing the real Python implementation.
+
 ## Edge cases
 
 ### PATH order conflicts
