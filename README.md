@@ -20,16 +20,16 @@ Anything not yet wrapped is reachable via `zb raw <METHOD> <path>`, so the CLI n
 
 ```bash
 # attach a scanned receipt to an expense (a binary upload MCP can't carry)
-zb expenses receipt upload 982000000567001 ~/Downloads/starbucks.pdf
+zb expenses receipt upload 9820000005670010000 ~/Downloads/starbucks.pdf
 
 # email an invoice with the PDF attached
-zb invoices email 9820000009999001 --query send_attachment=true
+zb invoices email 9820000009999001000 --query send_attachment=true
 
 # apply a credit-note to an invoice
-zb invoices credits apply 9820000009999001 --body '{"apply_creditnotes":[{"creditnote_id":"...","amount_applied":100}]}'
+zb invoices credits apply 9820000009999001000 --body '{"apply_creditnotes":[{"creditnote_id":"9820000001234001000","amount_applied":100}]}'
 
 # preview a destructive call without sending it — no network, no token refresh
-zb --dry-run customer-payments update P1 --body '{"project_id":"..."}'
+zb --dry-run customer-payments update 9820000005670010000 --body '{"amount":100,"reference_number":"check-1234"}'
 ```
 
 > **Primary consumer:** AI agents. Default output is JSON; errors are structured; exit codes are meaningful. See [`skills/zoho-books/SKILL.md`](skills/zoho-books/SKILL.md) for the agent-user contract and [`AGENTS.md`](AGENTS.md) for the contributor guide.
@@ -75,7 +75,9 @@ Each release on [GitHub Releases](https://github.com/madisonrickert/zoho-books-c
    zb auth login --client-id $ZOHO_CLIENT_ID --client-secret $ZOHO_CLIENT_SECRET
    ```
 
-   A browser window opens; authorize the app. Tokens are stored in your OS keychain (macOS Keychain on Darwin) with a `0600` file fallback at `~/.config/zoho-books-cli/credentials.json`.
+   A browser window opens; authorize the app. Tokens are stored in your OS keychain (macOS Keychain on Darwin; Secret Service on Linux) with a `0600` file fallback at:
+   - macOS: `~/Library/Application Support/zoho-books-cli/credentials.json`
+   - Linux: `~/.config/zoho-books-cli/credentials.json`
 
 5. Pick your organization:
 
@@ -103,21 +105,21 @@ export ZOHO_REGION=us
 ### Upload a receipt to an expense
 
 ```bash
-zb expenses receipt upload 982000000567001 ~/Downloads/starbucks.pdf
+zb expenses receipt upload 9820000005670010000 ~/Downloads/starbucks.pdf
 ```
 
 Output:
 
 ```json
-{"ok": true, "data": {"expense_id": "982000000567001", "uploaded": "starbucks.pdf", "response": {...}}}
+{"ok": true, "data": {"expense_id": "9820000005670010000", "uploaded": "starbucks.pdf", "response": {...}}}
 ```
 
 ### Attach multiple supporting files
 
 ```bash
-zb expenses attachments add 982000000567001 invoice.pdf screenshot.png
-zb bills attachments add 9820000001234001 vendor-contract.pdf
-zb invoices attachments add 9820000009999001 signed-po.pdf
+zb expenses attachments add 9820000005670010000 invoice.pdf screenshot.png
+zb bills attachments add 9820000001234001000 vendor-contract.pdf
+zb invoices attachments add 9820000009999001000 signed-po.pdf
 ```
 
 ### List expenses and bank transactions
@@ -141,7 +143,7 @@ zb expenses update EXP1 --body @updates.json
 zb expenses delete EXP1
 ```
 
-**IDs must be strings in `--body` JSON** — Zoho IDs exceed JavaScript's safe-integer limit and will lose precision if serialized as numbers. See the [agent-user contract in `SKILL.md`](skills/zoho-books/SKILL.md#ids-must-be-strings-in---body-json) for the full rationale.
+**Pass IDs as strings in `--body` JSON when downstream consumers will see them.** The CLI itself preserves them either way (request bodies go through `serde_json`'s `RawValue` so digit sequences reach the wire byte-perfect), but Zoho's 19-digit IDs exceed JavaScript's `Number.MAX_SAFE_INTEGER` and any JS consumer that re-parses the response will silently corrupt them. Quoting at the source avoids the foot-gun. See the [agent-user contract in `SKILL.md`](skills/zoho-books/SKILL.md#ids-must-be-strings-in---body-json) for the full rationale.
 
 ### Categorize a bank transaction
 
@@ -166,7 +168,8 @@ zb <group> --help        # per-group help
 
 Top-level groups:
 
-- `auth`, `org` — login / token refresh / org selection / org get / org update
+- `auth` — login / status / refresh / logout
+- `org` — list / use / current / get / update
 - `expenses`, `recurring-expenses` — CRUD + receipts + attachments + comments + stop/resume
 - `bank-transactions`, `bank-rules` — CRUD + match/categorize/exclude/restore + 8-target categorize verbs + statement import + rules CRUD
 - `bills` — CRUD + mark-void / mark-open / email + payments apply/unapply + comments + attachments add/get/delete
@@ -253,4 +256,4 @@ The CLI wraps a broad slice of the Zoho Books v3 API but does **not** cover all 
 - Contacts: 1099 tracking, portal/reminder toggles, statements-email, opening balance
 - Recurring expenses / invoices: anything beyond what's listed in the command groups above
 
-If one of these is blocking you, open an issue or wrap it locally — `commands/_shared.py` plus the existing module patterns make it ~50 lines per CRUD surface. In the meantime: `zb raw <METHOD> <path>` reaches anything authenticated.
+If one of these is blocking you, open an issue or wrap it locally — `src/commands/common.rs` plus the existing module patterns make it ~50 lines per CRUD surface. In the meantime: `zb raw <METHOD> <path>` reaches anything authenticated.

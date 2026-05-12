@@ -21,7 +21,7 @@ Each wrapped command is a 1:1 map onto a Zoho v3 endpoint, accepting:
 - `--query k=v` (repeatable) and/or `--params '<JSON>'` — merged via `shared::parse_query_pairs` (`--params` wins).
 - `--page` / `--per-page` / `--page-all` / `--page-limit` / `--page-delay` on every list, exposed through the shared `ListArgs` struct.
 
-**No typed per-field flags** — JSON body keeps the surface stable as Zoho evolves. **Composed commands** (one CLI call, multiple API ops) **must** be prefixed with `+` (e.g. `zb expenses +from-receipt`); bare names always mean a single-endpoint wrapper.
+**No typed per-field flags** — JSON body keeps the surface stable as Zoho evolves.
 
 ## Response emission
 
@@ -48,10 +48,11 @@ Zoho IDs are 19 digits, exceeding JS's `Number.MAX_SAFE_INTEGER`. The CLI never 
 Pattern per command module:
 
 - Inline `#[cfg(test)] mod tests` for plumbing-level checks. Use `MemoryStorage` (gated `#[cfg(test)]`) for fixtures.
-- `mockito::Server::new()` for HTTP mocking. `Client::with_api_override(server.url())` (also `#[cfg(test)]`) replaces the production API base URL.
+- `mockito::Server::new()` for HTTP mocking. `Client::with_api_override(server.url())` (also `#[cfg(test)]`) replaces the production API base URL; `Client::with_accounts_override(server.url())` replaces the OAuth refresh endpoint when you need to exercise the 401-refresh-retry state machine against a single mock server.
+- Each domain module has a `list_targets_<base>` test that asserts the BASE path is hit — these catch path-drift regressions but don't capture stdout, so they don't catch envelope-key drift on their own (the AGENTS.md "live-verify, don't guess" rule covers that).
 - Happy-path test asserting response shape and (for writes) wire body via `match_body`.
 - Header test on every `update-by-custom-field` (`X-Unique-Identifier-Key`/`-Value`, `X-Upsert`) — `client::tests::custom_headers_forwarded_to_request` covers the generic path.
-- Binary downloads: success + 404 (asserts no partial file or parent dir).
+- Binary download tests (success + 404, no partial file written, parent dir not created on failure) are **not** yet implemented per-module; the underlying `Client::get_bytes` path is exercised by integration smoke. Add them with new download commands.
 - Action verbs: path hit + `data.<id_field>` round-trip.
 
 `cargo test` stays green at every commit.
@@ -69,7 +70,7 @@ Both must be clean before merge. `#[allow(...)]` suppressions are allowed during
 
 The JSON shapes in [`SKILL.md`](skills/zoho-books/SKILL.md) are public. Adding fields to `data` is fine; renaming/removing keys is breaking and needs a major bump.
 
-The 17 invariants enumerated in the original port plan ([`bench/cli-latency/RESULTS.md`](bench/cli-latency/RESULTS.md) summarises the perf side; the architectural contract lives in commit history and the `superpowers:writing-plans` artifact) define what "drop-in" means. Don't break:
+The 17 invariants below define what "drop-in" means. ([`bench/cli-latency/RESULTS.md`](bench/cli-latency/RESULTS.md) summarises the perf side of the Python-to-Rust port; the full architectural contract is preserved in commit messages on `port/rust`.) Don't break:
 
 1. Envelope shapes (`{ok: true, data: ...}` / `{ok: false, error: {code, message, details}}`).
 2. Exit codes (0/1/2/3/4/5/6).
@@ -110,7 +111,7 @@ No helper function (3 sites today; would be premature abstraction). Document the
 ## Security
 
 - **Never log tokens.** Stored in OS keyring (preferred) or `~/.config/zoho-books-cli/credentials.json` at `0600`. Mask before any debug print.
-- **Never commit secrets.** `.env`, `credentials.json`, `.zb_*` are gitignored; `detect-secrets` runs in pre-commit.
+- **Never commit secrets.** `.env*`, `credentials.json`, `*.pem`, `*.key`, and `secrets/` are gitignored; `detect-secrets` runs in pre-commit.
 - **Validate uploads.** `uploads::validate` enforces type + size. Don't bypass.
 - **No destructive Zoho calls in tests** — all HTTP is mockito-mocked. Live integration tests must be env-gated.
 - **`zb raw` is intentionally unfiltered** — don't add path/method validation.
@@ -122,8 +123,8 @@ Disclosure policy: [`SECURITY.md`](SECURITY.md).
 Live published package. Substantive changes go through review before landing on `main`:
 
 - One feature per branch (`feat/<surface>`). Atomic commits within: module → `cli.rs` registration → tests → review fixes. Combine work touching the same file in one branch.
-- Run the `superpowers:code-reviewer` agent before merging. Address every Should-fix; document each Nit.
-- Trivial changes (typo fixes, dep bumps, lint) land on `main` directly. Boundary: `~/.claude/projects/.../memory/feedback_pr_ceremony.md`.
+- Run a code-reviewer pass before merging. Address every Should-fix; document each Nit.
+- Trivial changes (typo fixes, dep bumps, lint) land on `main` directly.
 
 ## Pre-merge checklist
 
@@ -139,13 +140,22 @@ Live published package. Substantive changes go through review before landing on 
 
 ## Releases
 
-`cargo-dist` powers the release pipeline. Tag-driven: push a `vX.Y.Z` tag, GitHub Actions cross-compiles binaries for macOS arm64/x86_64 and Linux x86_64, uploads them to a GitHub Release, and updates the Homebrew tap formula at `madisonrickert/homebrew-tap`. Configuration lives in `Cargo.toml` (`[workspace.metadata.dist]`) and `.github/workflows/release.yml`.
+Hand-rolled tag-driven pipeline in `.github/workflows/release.yml`:
+
+1. **verify-version** — fails the run if the tag doesn't match `Cargo.toml`'s version (gate before the long cross-compile jobs).
+2. **build** — matrix-builds the release binary for `aarch64-apple-darwin`, `x86_64-apple-darwin`, and `x86_64-unknown-linux-gnu`. Each archive bundles the binary + `README.md` + `LICENSE` plus a SHA-256.
+3. **github-release** — gathers the artifacts and creates the GitHub Release, with notes pointing at `MIGRATION.md`.
+4. **brew-tap** (opt-in, gated by repo variable `HOMEBREW_TAP_ENABLED == 'true'`) — computes the tarball SHAs, writes a `Formula/zoho-books-cli.rb` with `on_macos { on_arm / on_intel }` and `on_linux` blocks, and pushes it to `madisonrickert/homebrew-tap` using the `HOMEBREW_TAP_TOKEN` repo secret.
+
+The brew-tap job stays gated so the rest of the pipeline works on day one before the tap repo + PAT secret are configured. Flip the variable once both exist.
+
+There is no `[workspace.metadata.dist]` section; `cargo-dist` was considered but skipped to keep the workflow free of an external generator's version churn.
 
 ## When in doubt
 
 1. Read 2-3 similar existing modules in `src/commands/`.
 2. Read `src/commands/common.rs` for the shared helpers.
 3. Read `src/client.rs` for the HTTP layer's invariants.
-4. Read the corresponding inline `#[cfg(test)] mod tests` — the executable spec.
+4. Read the relevant `#[cfg(test)] mod tests` blocks — wire-path smoke tests in each domain module, plus deeper plumbing tests in `src/shared.rs`, `src/client.rs`, and `src/storage.rs`.
 
 If those don't answer it, ask before inventing a new pattern.
