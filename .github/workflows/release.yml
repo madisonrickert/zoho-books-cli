@@ -107,11 +107,15 @@ jobs:
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+        # `--generate-notes` builds the changelog from merged PRs / commits
+        # since the previous tag. For release-specific copy (perf tables,
+        # migration pointers, etc.), curate the notes by hand after the
+        # workflow runs via `gh release edit <tag> --notes-file ...` — see
+        # v1.0.0 for the canonical shape.
         run: |
           gh release create "$GITHUB_REF_NAME" \
             --title "$GITHUB_REF_NAME" \
             --generate-notes \
-            --notes-file <(echo "Pre-built binaries below. See [MIGRATION.md](https://github.com/${{ github.repository }}/blob/main/MIGRATION.md) if upgrading from Python 0.5.x.") \
             dist/*
 
   # Updates the Homebrew tap formula at madisonrickert/homebrew-tap.
