@@ -144,7 +144,7 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
         Sub::Search(args) => {
             let mut q = args.list.build_query()?;
             q.insert("contact_name_contains".into(), args.term);
-            search_with_query(ctx, q, &args.list)
+            common::list_with_query(ctx, BASE, q, &args.list, "contacts")
         }
         Sub::Create(args) => common::create(ctx, BASE, &args),
         Sub::Get(args) => common::get(ctx, &format!("{BASE}/{}", args.contact_id)),
@@ -193,7 +193,13 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
             PersonsSub::List(args) => {
                 let mut q = args.list.build_query()?;
                 q.insert("contact_id".into(), args.contact_id);
-                persons_list_with_query(ctx, q, &args.list)
+                common::list_with_query(
+                    ctx,
+                    &format!("{BASE}/contactpersons"),
+                    q,
+                    &args.list,
+                    "contact_persons",
+                )
             }
             PersonsSub::Get(args) => common::get(
                 ctx,
@@ -217,35 +223,6 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
             }
         },
     }
-}
-
-fn search_with_query(ctx: &mut Ctx, q: Query, list_args: &ListArgs) -> Result<()> {
-    let mut stdout = std::io::stdout().lock();
-    let opts = crate::shared::PageOpts {
-        collection_key: "contacts",
-        page_all: list_args.page_all,
-        page_limit: list_args.page_limit,
-        page_delay_ms: list_args.page_delay,
-        format: ctx.format,
-    };
-    let client = &mut ctx.client;
-    crate::shared::emit_list_paginated(|query| client.get(BASE, query), q, &opts, &mut stdout)?;
-    Ok(())
-}
-
-fn persons_list_with_query(ctx: &mut Ctx, q: Query, list_args: &ListArgs) -> Result<()> {
-    let path = format!("{BASE}/contactpersons");
-    let mut stdout = std::io::stdout().lock();
-    let opts = crate::shared::PageOpts {
-        collection_key: "contact_persons",
-        page_all: list_args.page_all,
-        page_limit: list_args.page_limit,
-        page_delay_ms: list_args.page_delay,
-        format: ctx.format,
-    };
-    let client = &mut ctx.client;
-    crate::shared::emit_list_paginated(|query| client.get(&path, query), q, &opts, &mut stdout)?;
-    Ok(())
 }
 
 #[cfg(test)]

@@ -126,6 +126,19 @@ impl CustomFieldUpdateArgs {
 
 pub fn list(ctx: &mut Ctx, path: &str, args: &ListArgs, collection_key: &str) -> Result<()> {
     let query = args.build_query()?;
+    list_with_query(ctx, path, query, args, collection_key)
+}
+
+/// Like `list`, but the caller has already built the `Query` (typically to
+/// inject an extra param the wrapper command added — e.g. `contact_name_contains`
+/// for contacts search or `contact_id` for the contactpersons list).
+pub fn list_with_query(
+    ctx: &mut Ctx,
+    path: &str,
+    query: Query,
+    args: &ListArgs,
+    collection_key: &str,
+) -> Result<()> {
     let mut stdout = io::stdout().lock();
     let opts = shared::PageOpts {
         collection_key,
