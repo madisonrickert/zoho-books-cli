@@ -1,5 +1,6 @@
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -69,7 +70,7 @@ impl ResponseBody {
 
 pub struct Client {
     pub cfg: RuntimeConfig,
-    storage: Box<dyn Storage>,
+    storage: Arc<dyn Storage>,
     http: reqwest::blocking::Client,
     upload_http: reqwest::blocking::Client,
     dry_run: bool,
@@ -84,7 +85,7 @@ pub struct Client {
 impl Client {
     pub fn new(
         cfg: RuntimeConfig,
-        storage: Box<dyn Storage>,
+        storage: Arc<dyn Storage>,
         dry_run: bool,
         format: OutputFormat,
     ) -> Result<Self> {
@@ -490,7 +491,7 @@ mod tests {
     }
 
     fn make_client(cfg: RuntimeConfig, base: &str) -> Client {
-        let storage = Box::new(MemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         Client::new(cfg, storage, false, OutputFormat::Json)
             .unwrap()
             .with_api_override(base)
@@ -581,7 +582,7 @@ mod tests {
     #[test]
     fn url_builder_handles_path_with_and_without_prefix() {
         let cfg = test_cfg(None);
-        let storage = Box::new(MemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let client = Client::new(cfg, storage, false, OutputFormat::Json).unwrap();
         assert_eq!(
             client.build_url("/contacts"),
@@ -601,7 +602,7 @@ mod tests {
     fn missing_org_id_fails_with_validation() {
         let mut cfg = test_cfg(None);
         cfg.org_id = None;
-        let storage = Box::new(MemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let mut client = Client::new(cfg, storage, false, OutputFormat::Json).unwrap();
         let err = client.get("/contacts", &Query::new()).unwrap_err();
         assert_eq!(err.code(), "validation");
@@ -611,7 +612,7 @@ mod tests {
     fn missing_refresh_token_fails_with_auth_required() {
         let mut cfg = test_cfg(None);
         cfg.refresh_token = None;
-        let storage = Box::new(MemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let mut client = Client::new(cfg, storage, false, OutputFormat::Json).unwrap();
         let err = client.get("/contacts", &Query::new()).unwrap_err();
         assert_eq!(err.code(), "auth_required");
@@ -622,7 +623,7 @@ mod tests {
         // No mock — if the client tried to send, it'd fail with a connection error.
         // Dry-run must short-circuit before any send.
         let cfg = test_cfg(None);
-        let storage = Box::new(MemoryStorage::new());
+        let storage = Arc::new(MemoryStorage::new());
         let mut client = Client::new(cfg, storage, true, OutputFormat::Json)
             .unwrap()
             .with_api_override("http://127.0.0.1:1"); // unreachable

@@ -1,4 +1,5 @@
 use std::io::{self, Write};
+use std::sync::Arc;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use serde_json::json;
@@ -92,9 +93,14 @@ pub enum Commands {
 /// Shared context every command receives. Holds the HTTP client (which carries
 /// the resolved RuntimeConfig + active access token), the underlying storage
 /// (for commands that persist state like `org use`), and the output format.
+///
+/// `storage` is an `Arc<dyn Storage>` shared with the client — both refer to
+/// the same on-disk file + keyring slot, so a token refresh inside a request
+/// is immediately visible to commands that read storage afterwards. Storage
+/// trait methods take `&self`, so concurrent Arc-clones are safe.
 pub struct Ctx {
     pub client: Client,
-    pub storage: Box<dyn Storage>,
+    pub storage: Arc<dyn Storage>,
     pub format: OutputFormat,
 }
 
@@ -123,14 +129,13 @@ impl Ctx {
                     .unwrap_or(3600.0),
             ),
         };
-        let storage_for_client: Box<dyn Storage> = Box::new(MemoryStorage::new());
-        let client = Client::new(cfg, storage_for_client, false, OutputFormat::Json)
+        let storage: Arc<dyn Storage> = Arc::new(MemoryStorage::new());
+        let client = Client::new(cfg, Arc::clone(&storage), false, OutputFormat::Json)
             .unwrap()
             .with_api_override(server_url);
-        let storage_for_ctx: Box<dyn Storage> = Box::new(MemoryStorage::new());
         Ctx {
             client,
-            storage: storage_for_ctx,
+            storage,
             format: OutputFormat::Json,
         }
     }
@@ -190,17 +195,12 @@ pub fn run(cli: Cli) -> Result<()> {
 }
 
 fn build_ctx(dry_run: bool, format: OutputFormat) -> Result<Ctx> {
-    let storage = RealStorage::new();
-    let cfg = config::load(&storage, &Overrides::default())?;
-    let storage_box: Box<dyn Storage> = Box::new(storage);
-    // The client needs its own Storage handle (for token refresh side effects).
-    // RealStorage is cheap to recreate; both refer to the same on-disk file +
-    // keyring slot.
-    let client_storage: Box<dyn Storage> = Box::new(RealStorage::new());
-    let client = Client::new(cfg, client_storage, dry_run, format)?;
+    let storage: Arc<dyn Storage> = Arc::new(RealStorage::new());
+    let cfg = config::load(&*storage, &Overrides::default())?;
+    let client = Client::new(cfg, Arc::clone(&storage), dry_run, format)?;
     Ok(Ctx {
         client,
-        storage: storage_box,
+        storage,
         format,
     })
 }

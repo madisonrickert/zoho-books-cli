@@ -10,7 +10,6 @@ use crate::config::{self, SaveTokens};
 use crate::errors::{Result, ZohoError};
 use crate::output;
 use crate::regions;
-use crate::storage::{RealStorage, Storage};
 
 #[derive(Args, Debug)]
 pub struct Cmd {
@@ -84,9 +83,8 @@ fn login(args: LoginArgs, ctx: &mut Ctx) -> Result<()> {
     })?;
     let expires_at = unix_now() + token.expires_in as f64;
 
-    let storage = RealStorage::new();
     config::save_tokens(
-        &storage,
+        &*ctx.storage,
         SaveTokens {
             client_id: &client_id,
             client_secret: &client_secret,
@@ -134,8 +132,7 @@ fn refresh(ctx: &mut Ctx) -> Result<()> {
     let region = ctx.client.cfg.region;
     let body = auth::refresh_access_token(client_id, client_secret, refresh_token, region)?;
     let expires_at = unix_now() + body.expires_in as f64;
-    let storage = RealStorage::new();
-    config::update_access_token(&storage, &body.access_token, expires_at)?;
+    config::update_access_token(&*ctx.storage, &body.access_token, expires_at)?;
     ctx.client.cfg.access_token = Some(body.access_token);
     ctx.client.cfg.expires_at = Some(expires_at);
     let data = json!({ "refreshed": true, "expires_at": expires_at });
@@ -143,8 +140,7 @@ fn refresh(ctx: &mut Ctx) -> Result<()> {
 }
 
 fn logout(ctx: &mut Ctx) -> Result<()> {
-    let storage = RealStorage::new();
-    Storage::clear(&storage)?;
+    ctx.storage.clear()?;
     let data = json!({ "cleared": true });
     emit_success(&data, ctx)
 }

@@ -9,7 +9,6 @@ use crate::config;
 use crate::errors::{Result, ZohoError};
 use crate::output;
 use crate::shared::{self, Query};
-use crate::storage::RealStorage;
 
 #[derive(Args, Debug)]
 pub struct Cmd {
@@ -91,8 +90,7 @@ fn use_org(args: UseArgs, ctx: &mut Ctx) -> Result<()> {
             "org_id is required and must be non-empty.",
         ));
     }
-    let storage = RealStorage::new();
-    config::save_org(&storage, org_id)?;
+    config::save_org(&*ctx.storage, org_id)?;
     emit(&json!({ "org_id": org_id }), ctx)
 }
 
