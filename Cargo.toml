@@ -10,6 +10,18 @@ repository = "https://github.com/madisonrickert/zoho-books-cli"
 authors = ["Madison Rickert <3495636+madisonrickert@users.noreply.github.com>"]
 categories = ["command-line-utilities"]
 keywords = ["zoho", "books", "accounting", "cli", "api"]
+# Keep cargo package / publish output focused on the Rust crate. The Python
+# deprecation shim, bench harness, and GitHub Actions live in this repo for
+# convenience but aren't part of the binary.
+exclude = [
+    "pyproject.toml",
+    "src/zoho_books_cli_legacy/",
+    "bench/",
+    ".github/",
+    "skills/",
+    "MIGRATION.md",
+    "CONTRIBUTING.md",
+]
 
 [[bin]]
 name = "zb"

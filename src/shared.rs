@@ -504,12 +504,16 @@ mod tests {
 
     #[test]
     fn paginated_starts_from_existing_page_query_param() {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+
         let mut q = Query::new();
         q.insert("page".into(), "5".into());
-        let mut seen_pages: Vec<u32> = Vec::new();
-        let fetch = |q: &Query| -> Result<Value> {
+        let seen_pages: Rc<RefCell<Vec<u32>>> = Rc::new(RefCell::new(Vec::new()));
+        let seen_clone = Rc::clone(&seen_pages);
+        let fetch = move |q: &Query| -> Result<Value> {
             let page: u32 = q.get("page").unwrap().parse().unwrap();
-            seen_pages.push(page);
+            seen_clone.borrow_mut().push(page);
             let has_more = page < 7;
             Ok(json!({
                 "contacts": [{"page": page}],
@@ -519,9 +523,8 @@ mod tests {
         let _ = capture(|w| {
             emit_list_paginated(fetch, q, &page_opts(true, 10), w).map_err(io::Error::other)
         });
-        // emit_list_paginated takes the closure by move, so seen_pages was captured
-        // into the closure — can't read after. Instead, verify via the emitted
-        // page_context (test above already covers the sweep loop). This test
-        // just exercises the start-from-N path without asserting on internals.
+        // Sweep started at 5 (from the existing query param) and continued until
+        // has_more_page=false at page 7.
+        assert_eq!(*seen_pages.borrow(), vec![5, 6, 7]);
     }
 }

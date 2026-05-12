@@ -265,3 +265,29 @@ fn upload_one_attachment(expense_id: &str, file: &std::path::Path, ctx: &mut Ctx
     ctx.client
         .post(&format!("{BASE}/{expense_id}/attachment"), opts)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::Ctx;
+
+    #[test]
+    fn list_targets_expenses() {
+        let mut server = mockito::Server::new();
+        let m = server
+            .mock("GET", "/books/v3/expenses")
+            .match_query(mockito::Matcher::Any)
+            .with_status(200)
+            .with_body(r#"{"expenses":[]}"#)
+            .create();
+        let mut ctx = Ctx::new_for_test(&server.url());
+        run(
+            Cmd {
+                sub: Sub::List(ListArgs::default()),
+            },
+            &mut ctx,
+        )
+        .unwrap();
+        m.assert();
+    }
+}

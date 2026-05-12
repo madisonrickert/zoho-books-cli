@@ -98,6 +98,44 @@ pub struct Ctx {
     pub format: OutputFormat,
 }
 
+impl Ctx {
+    /// Test helper: build a Ctx pointing at a mockito server URL. Production
+    /// code never calls this. The storage is in-memory; the client is wired
+    /// with a fake access token that's far enough in the future to skip the
+    /// refresh check, and both api_url and accounts_url are overridden to the
+    /// server URL so all HTTP traffic stays on the local mock.
+    #[cfg(test)]
+    pub fn new_for_test(server_url: &str) -> Self {
+        use crate::storage::MemoryStorage;
+        let region = crate::regions::resolve("us").unwrap();
+        let cfg = crate::config::RuntimeConfig {
+            region,
+            org_id: Some("123".into()),
+            client_id: Some("cid".into()),
+            client_secret: Some("csec".into()),
+            refresh_token: Some("rt".into()),
+            access_token: Some("at".into()),
+            // Far future so ensure_access_token skips the refresh path.
+            expires_at: Some(
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs_f64() + 3600.0)
+                    .unwrap_or(3600.0),
+            ),
+        };
+        let storage_for_client: Box<dyn Storage> = Box::new(MemoryStorage::new());
+        let client = Client::new(cfg, storage_for_client, false, OutputFormat::Json)
+            .unwrap()
+            .with_api_override(server_url);
+        let storage_for_ctx: Box<dyn Storage> = Box::new(MemoryStorage::new());
+        Ctx {
+            client,
+            storage: storage_for_ctx,
+            format: OutputFormat::Json,
+        }
+    }
+}
+
 pub fn effective_format(cli: &Cli) -> OutputFormat {
     if cli.pretty {
         OutputFormat::Table

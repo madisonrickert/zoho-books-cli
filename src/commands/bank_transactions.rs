@@ -210,3 +210,29 @@ fn categorize(ctx: &mut Ctx, args: &CategorizeArgs, suffix: &str) -> Result<()> 
     };
     common::action_with_body(ctx, &path, &args.body, TID, &args.transaction_id)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::Ctx;
+
+    #[test]
+    fn list_targets_banktransactions() {
+        let mut server = mockito::Server::new();
+        let m = server
+            .mock("GET", "/books/v3/banktransactions")
+            .match_query(mockito::Matcher::Any)
+            .with_status(200)
+            .with_body(r#"{"banktransactions":[]}"#)
+            .create();
+        let mut ctx = Ctx::new_for_test(&server.url());
+        run(
+            Cmd {
+                sub: Sub::List(ListArgs::default()),
+            },
+            &mut ctx,
+        )
+        .unwrap();
+        m.assert();
+    }
+}

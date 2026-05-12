@@ -247,3 +247,29 @@ fn persons_list_with_query(ctx: &mut Ctx, q: Query, list_args: &ListArgs) -> Res
     crate::shared::emit_list_paginated(|query| client.get(&path, query), q, &opts, &mut stdout)?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::Ctx;
+
+    #[test]
+    fn list_targets_contacts() {
+        let mut server = mockito::Server::new();
+        let m = server
+            .mock("GET", "/books/v3/contacts")
+            .match_query(mockito::Matcher::Any)
+            .with_status(200)
+            .with_body(r#"{"contacts":[]}"#)
+            .create();
+        let mut ctx = Ctx::new_for_test(&server.url());
+        run(
+            Cmd {
+                sub: Sub::List(ListArgs::default()),
+            },
+            &mut ctx,
+        )
+        .unwrap();
+        m.assert();
+    }
+}

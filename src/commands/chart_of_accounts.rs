@@ -101,3 +101,29 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
         },
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::Ctx;
+
+    #[test]
+    fn list_targets_chartofaccounts() {
+        let mut server = mockito::Server::new();
+        let m = server
+            .mock("GET", "/books/v3/chartofaccounts")
+            .match_query(mockito::Matcher::Any)
+            .with_status(200)
+            .with_body(r#"{"chartofaccounts":[]}"#)
+            .create();
+        let mut ctx = Ctx::new_for_test(&server.url());
+        run(
+            Cmd {
+                sub: Sub::List(ListArgs::default()),
+            },
+            &mut ctx,
+        )
+        .unwrap();
+        m.assert();
+    }
+}

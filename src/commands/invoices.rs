@@ -469,3 +469,29 @@ fn attachments_get(args: AttachmentsGetArgs, ctx: &mut Ctx) -> Result<()> {
         ctx,
     )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cli::Ctx;
+
+    #[test]
+    fn list_targets_invoices() {
+        let mut server = mockito::Server::new();
+        let m = server
+            .mock("GET", "/books/v3/invoices")
+            .match_query(mockito::Matcher::Any)
+            .with_status(200)
+            .with_body(r#"{"invoices":[]}"#)
+            .create();
+        let mut ctx = Ctx::new_for_test(&server.url());
+        run(
+            Cmd {
+                sub: Sub::List(ListArgs::default()),
+            },
+            &mut ctx,
+        )
+        .unwrap();
+        m.assert();
+    }
+}
