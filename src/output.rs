@@ -272,4 +272,46 @@ mod tests {
             "arbitrary_precision must NOT emit scientific notation; got: {s}"
         );
     }
+
+    #[test]
+    fn long_ids_survive_every_output_format() {
+        // Recommendation A: consistent long-ID handling across the whole
+        // output pipeline. A 20-digit number must round-trip through
+        // serde_json::from_str (which arbitrary_precision keeps as a string
+        // internally) and re-emit byte-perfect via every supported format.
+        let raw = r#"{"id":99999999999999999999,"name":"x"}"#;
+        let parsed: Value = serde_json::from_str(raw).unwrap();
+
+        // json
+        let s = capture(|w| emit_success(&parsed, OutputFormat::Json, w));
+        assert!(s.contains("99999999999999999999"), "json: got {s}");
+        assert!(!s.contains("1e"), "json: scientific notation in {s}");
+
+        // table (pretty-printed json — same path)
+        let s = capture(|w| emit_success(&parsed, OutputFormat::Table, w));
+        assert!(s.contains("99999999999999999999"), "table: got {s}");
+        assert!(!s.contains("1e"), "table: scientific notation in {s}");
+
+        // yaml
+        let s = capture(|w| emit_success(&parsed, OutputFormat::Yaml, w));
+        assert!(s.contains("99999999999999999999"), "yaml: got {s}");
+        assert!(!s.contains("1e+20"), "yaml: scientific notation in {s}");
+
+        // csv (only applies to list-shaped data) — build via from_str so the
+        // 20-digit literal stays in JSON syntax rather than Rust source.
+        let list_payload: Value = serde_json::from_str(
+            r#"{"ok":true,"data":{"items":[{"id":99999999999999999999,"name":"x"}]}}"#,
+        )
+        .unwrap();
+        let s = capture(|w| emit(&list_payload, OutputFormat::Csv, w));
+        assert!(s.contains("99999999999999999999"), "csv: got {s}");
+        assert!(!s.contains("1e"), "csv: scientific notation in {s}");
+
+        // ndjson (the per-page write path under --page-all)
+        let mut buf = Vec::new();
+        write_ndjson_line(&parsed, &mut buf).unwrap();
+        let s = String::from_utf8(buf).unwrap();
+        assert!(s.contains("99999999999999999999"), "ndjson: got {s}");
+        assert!(!s.contains("1e"), "ndjson: scientific notation in {s}");
+    }
 }

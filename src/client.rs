@@ -432,6 +432,14 @@ fn now_unix_secs() -> f64 {
         .unwrap_or(0.0)
 }
 
+/// Numeric `Retry-After: <seconds>` parsing only. RFC 9110 also allows
+/// HTTP-date form (`Retry-After: Wed, 21 Oct 2015 07:28:00 GMT`), but Zoho's
+/// API docs (https://www.zoho.com/books/api/v3/introduction/#organization-id)
+/// never mention `Retry-After` at all — they only describe the 429 status
+/// codes (44, 45, 1070) with messages like "try again after some time."
+/// In practice Zoho appears to send numeric seconds when it sends the header
+/// at all; this matches Python's `int(raw)` behavior. Non-numeric values fall
+/// through to exponential backoff (capped at MAX_BACKOFF_SECS).
 fn parse_retry_after(headers: &HeaderMap) -> Option<u64> {
     let raw = headers.get(reqwest::header::RETRY_AFTER)?.to_str().ok()?;
     raw.trim().parse::<u64>().ok()
@@ -644,6 +652,33 @@ mod tests {
                 "123".into(),
             ))
             .match_body(mockito::Matcher::Regex("9820000005670010000".into()))
+            .with_status(200)
+            .with_body(r#"{"expense":{"expense_id":"e1"}}"#)
+            .create();
+        let mut client = make_client(test_cfg(None), &server.url());
+        let opts = RequestOptions {
+            body: Some(body),
+            ..RequestOptions::default()
+        };
+        client.post("/expenses", opts).unwrap();
+        m.assert();
+    }
+
+    #[test]
+    fn twenty_digit_id_in_post_body_preserved_on_wire() {
+        // The big-number case: 99999999999999999999 (20 nines) exceeds
+        // u64::MAX. Because the body travels as Vec<u8> built from a
+        // RawValue's bytes, the digits reach mockito unchanged regardless
+        // of serde_json's Number representation.
+        let body = r#"{"future_id":99999999999999999999}"#.as_bytes().to_vec();
+        let mut server = mockito::Server::new();
+        let m = server
+            .mock("POST", "/books/v3/expenses")
+            .match_query(mockito::Matcher::UrlEncoded(
+                "organization_id".into(),
+                "123".into(),
+            ))
+            .match_body(mockito::Matcher::Regex("99999999999999999999".into()))
             .with_status(200)
             .with_body(r#"{"expense":{"expense_id":"e1"}}"#)
             .create();

@@ -295,6 +295,26 @@ mod tests {
         assert!(body.get().contains("9820000005670010000"));
     }
 
+    #[test]
+    fn parse_body_preserves_20_digit_numeric() {
+        // Beyond u64::MAX. RawValue stores the original bytes, so this works
+        // independently of serde_json's arbitrary_precision feature — but
+        // confirming it explicitly closes the "what if Zoho ever ships a
+        // bigger ID field?" hypothetical.
+        let raw = r#"{"future_id":99999999999999999999}"#;
+        let body = parse_body(Some(raw)).unwrap().unwrap();
+        assert_eq!(body.get(), r#"{"future_id":99999999999999999999}"#);
+    }
+
+    #[test]
+    fn parse_query_params_preserves_20_digit_numeric() {
+        // --params '{"id":99999999999999999999}' must url-encode the literal
+        // unchanged. Coercion happens via Number::to_string() which preserves
+        // the source bytes under arbitrary_precision.
+        let q = parse_query_pairs(&[], Some(r#"{"id":99999999999999999999}"#)).unwrap();
+        assert_eq!(q.get("id").unwrap(), "99999999999999999999");
+    }
+
     // --- parse_query_pairs ------------------------------------------------
 
     #[test]
