@@ -127,20 +127,16 @@ impl CustomFieldUpdateArgs {
 pub fn list(ctx: &mut Ctx, path: &str, args: &ListArgs, collection_key: &str) -> Result<()> {
     let query = args.build_query()?;
     let mut stdout = io::stdout().lock();
-    // FnMut closure that captures &mut ctx.client.
-    let format = ctx.format;
+    let opts = shared::PageOpts {
+        collection_key,
+        page_all: args.page_all,
+        page_limit: args.page_limit,
+        page_delay_ms: args.page_delay,
+        format: ctx.format,
+    };
     let client = &mut ctx.client;
     let fetch = |q: &Query| client.get(path, q);
-    shared::emit_list_paginated(
-        fetch,
-        query,
-        collection_key,
-        args.page_all,
-        args.page_limit,
-        args.page_delay,
-        format,
-        &mut stdout,
-    )?;
+    shared::emit_list_paginated(fetch, query, &opts, &mut stdout)?;
     let _ = stdout.flush();
     Ok(())
 }

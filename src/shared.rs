@@ -179,40 +179,48 @@ pub fn emit_action<W: Write>(
     output::emit_success(&payload, format, out)
 }
 
+/// Pagination config bundled to keep `emit_list_paginated`'s arg list short
+/// (clippy::too_many_arguments territory otherwise). Only the runtime-varying
+/// `fetch`, `query`, and `out` stay positional.
+#[derive(Debug, Clone, Copy)]
+pub struct PageOpts<'a> {
+    pub collection_key: &'a str,
+    pub page_all: bool,
+    pub page_limit: u32,
+    pub page_delay_ms: u64,
+    pub format: OutputFormat,
+}
+
 /// Pagination driver. Generic over a fetch closure so it doesn't depend on a
-/// concrete client type — that wiring lands when client.rs comes online.
+/// concrete client type.
 ///
-/// Single-page behavior when `page_all` is false. Otherwise loops page=N..N+limit
-/// (where N is `query["page"]` or 1), emits NDJSON, sleeps `page_delay_ms`
-/// between requests, stops when `page_context.has_more_page` is false.
-#[allow(clippy::too_many_arguments)]
+/// Single-page behavior when `opts.page_all` is false. Otherwise loops
+/// page=N..N+limit (where N is `query["page"]` or 1), emits NDJSON, sleeps
+/// `opts.page_delay_ms` between requests, stops when
+/// `page_context.has_more_page` is false.
 pub fn emit_list_paginated<F, W>(
     mut fetch: F,
     mut query: Query,
-    collection_key: &str,
-    page_all: bool,
-    page_limit: u32,
-    page_delay_ms: u64,
-    format: OutputFormat,
+    opts: &PageOpts<'_>,
     out: &mut W,
 ) -> Result<()>
 where
     F: FnMut(&Query) -> Result<Value>,
     W: Write,
 {
-    if !page_all {
+    if !opts.page_all {
         let resp = fetch(&query)?;
-        emit_list(&resp, collection_key, format, out).map_err(ZohoError::from)?;
+        emit_list(&resp, opts.collection_key, opts.format, out).map_err(ZohoError::from)?;
         return Ok(());
     }
 
     let start: u32 = query.get("page").and_then(|s| s.parse().ok()).unwrap_or(1);
     let mut current = start;
     let mut fetched: u32 = 0;
-    while fetched < page_limit {
+    while fetched < opts.page_limit {
         query.insert("page".into(), current.to_string());
         let resp = fetch(&query)?;
-        let (items, page_ctx) = list_parts(&resp, collection_key);
+        let (items, page_ctx) = list_parts(&resp, opts.collection_key);
         let line = serde_json::json!({
             "ok": true,
             "data": { "items": items, "page_context": page_ctx },
@@ -227,8 +235,8 @@ where
         if !has_more {
             break;
         }
-        if page_delay_ms > 0 {
-            thread::sleep(Duration::from_millis(page_delay_ms));
+        if opts.page_delay_ms > 0 {
+            thread::sleep(Duration::from_millis(opts.page_delay_ms));
         }
         current += 1;
     }
@@ -424,6 +432,16 @@ mod tests {
 
     // --- emit_list_paginated ---------------------------------------------
 
+    fn page_opts(page_all: bool, page_limit: u32) -> PageOpts<'static> {
+        PageOpts {
+            collection_key: "contacts",
+            page_all,
+            page_limit,
+            page_delay_ms: 0,
+            format: OutputFormat::Json,
+        }
+    }
+
     #[test]
     fn paginated_single_page_when_page_all_false() {
         let q = Query::new();
@@ -433,8 +451,7 @@ mod tests {
             Ok(json!({"contacts": [{"id": "1"}], "page_context": {"has_more_page": false}}))
         };
         let s = capture(|w| {
-            emit_list_paginated(fetch, q, "contacts", false, 10, 0, OutputFormat::Json, w)
-                .map_err(io::Error::other)
+            emit_list_paginated(fetch, q, &page_opts(false, 10), w).map_err(io::Error::other)
         });
         let parsed: Value = serde_json::from_str(s.trim_end()).unwrap();
         assert_eq!(parsed["data"]["items"].as_array().unwrap().len(), 1);
@@ -453,17 +470,8 @@ mod tests {
             }))
         };
         let s = capture(|w| {
-            emit_list_paginated(
-                fetch,
-                Query::new(),
-                "contacts",
-                true,
-                10,
-                0,
-                OutputFormat::Json,
-                w,
-            )
-            .map_err(io::Error::other)
+            emit_list_paginated(fetch, Query::new(), &page_opts(true, 10), w)
+                .map_err(io::Error::other)
         });
         let lines: Vec<&str> = s.lines().collect();
         assert_eq!(lines.len(), 3);
@@ -483,17 +491,8 @@ mod tests {
             }))
         };
         let s = capture(|w| {
-            emit_list_paginated(
-                fetch,
-                Query::new(),
-                "contacts",
-                true,
-                2,
-                0,
-                OutputFormat::Json,
-                w,
-            )
-            .map_err(io::Error::other)
+            emit_list_paginated(fetch, Query::new(), &page_opts(true, 2), w)
+                .map_err(io::Error::other)
         });
         let lines: Vec<&str> = s.lines().collect();
         assert_eq!(
@@ -518,8 +517,7 @@ mod tests {
             }))
         };
         let _ = capture(|w| {
-            emit_list_paginated(fetch, q, "contacts", true, 10, 0, OutputFormat::Json, w)
-                .map_err(io::Error::other)
+            emit_list_paginated(fetch, q, &page_opts(true, 10), w).map_err(io::Error::other)
         });
         // emit_list_paginated takes the closure by move, so seen_pages was captured
         // into the closure — can't read after. Instead, verify via the emitted

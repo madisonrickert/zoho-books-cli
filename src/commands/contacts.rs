@@ -221,35 +221,29 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
 
 fn search_with_query(ctx: &mut Ctx, q: Query, list_args: &ListArgs) -> Result<()> {
     let mut stdout = std::io::stdout().lock();
-    let format = ctx.format;
+    let opts = crate::shared::PageOpts {
+        collection_key: "contacts",
+        page_all: list_args.page_all,
+        page_limit: list_args.page_limit,
+        page_delay_ms: list_args.page_delay,
+        format: ctx.format,
+    };
     let client = &mut ctx.client;
-    crate::shared::emit_list_paginated(
-        |query| client.get(BASE, query),
-        q,
-        "contacts",
-        list_args.page_all,
-        list_args.page_limit,
-        list_args.page_delay,
-        format,
-        &mut stdout,
-    )?;
+    crate::shared::emit_list_paginated(|query| client.get(BASE, query), q, &opts, &mut stdout)?;
     Ok(())
 }
 
 fn persons_list_with_query(ctx: &mut Ctx, q: Query, list_args: &ListArgs) -> Result<()> {
     let path = format!("{BASE}/contactpersons");
     let mut stdout = std::io::stdout().lock();
-    let format = ctx.format;
+    let opts = crate::shared::PageOpts {
+        collection_key: "contact_persons",
+        page_all: list_args.page_all,
+        page_limit: list_args.page_limit,
+        page_delay_ms: list_args.page_delay,
+        format: ctx.format,
+    };
     let client = &mut ctx.client;
-    crate::shared::emit_list_paginated(
-        |query| client.get(&path, query),
-        q,
-        "contact_persons",
-        list_args.page_all,
-        list_args.page_limit,
-        list_args.page_delay,
-        format,
-        &mut stdout,
-    )?;
+    crate::shared::emit_list_paginated(|query| client.get(&path, query), q, &opts, &mut stdout)?;
     Ok(())
 }
