@@ -289,6 +289,8 @@ zb raw <GET|POST|PUT|DELETE> <path> [--query k=v] [--body '<json>'|@file.json] [
 **Categorize an uncategorized bank transaction as an expense:**
 1. `zb bank-transactions list --query status=uncategorized` (or `--query account_id=...`).
 2. `zb bank-transactions categorize expense <txn_id> --body '{"account_id":"...","amount":...,"date":"..."}'`.
+   - **Credit-card-account transactions:** add `"paid_through_account_id":"<card_account_id>"` (the card account) to the body. Without it Zoho returns `108004` ("the account you are trying to match it to is different"), because the expense isn't funded from the card the transaction lives on.
+   - If `108004` persists, use the validated two-step fallback: `zb expenses create --body '{"account_id":"...","paid_through_account_id":"<card_account_id>","amount":...,"date":"..."}'`, then `zb bank-transactions match <txn_id> --query account_id=<card_account_id> --body '{"transactions_to_be_matched":[{"transaction_id":"<expense_id>","transaction_type":"expense"}]}'`.
 3. Confirm via `zb bank-transactions get <txn_id>`.
 
 ## Discoverability

@@ -153,6 +153,8 @@ zb bank-transactions categorize expense <txn_id> --body '{"account_id":"..."}'
 zb bank-transactions match <txn_id> --body '{"transactions_to_be_matched":[{"transaction_id":"..."}]}'
 ```
 
+For a credit-card-account transaction, include `"paid_through_account_id":"<card_account_id>"` in the categorize body (the card account it was paid from); otherwise Zoho returns `108004`. See [`SKILL.md`](skills/zoho-books/SKILL.md) for the full recipe and the create-then-match fallback.
+
 ### Escape hatch — any endpoint
 
 ```bash

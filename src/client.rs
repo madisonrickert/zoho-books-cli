@@ -480,11 +480,15 @@ fn parse_json_response(resp: reqwest::blocking::Response) -> Result<Value> {
         .and_then(|m| m.as_str())
         .map(str::to_owned);
     let zoho_code = body.get("code").cloned().unwrap_or(Value::Null);
-    let details = json!({
+    let hint = hint_for_zoho_code(&zoho_code);
+    let mut details = json!({
         "http_status": status.as_u16(),
         "zoho_code": zoho_code,
         "body": body,
     });
+    if let Some(h) = hint {
+        details["hint"] = Value::String(h.to_owned());
+    }
 
     if status.as_u16() == 404 {
         return Err(
@@ -497,6 +501,32 @@ fn parse_json_response(resp: reqwest::blocking::Response) -> Result<Value> {
         ZohoError::api(message.unwrap_or_else(|| format!("Zoho API returned {}", status.as_u16())))
             .with_details(details),
     )
+}
+
+/// Actionable hint for specific Zoho error codes, surfaced (when present) in the
+/// error envelope's `details.hint`. This is additive: most codes have no hint and
+/// the key is simply absent. The code is matched on its string form because
+/// `arbitrary_precision` forbids the numeric `Number` accessors (see AGENTS.md).
+fn hint_for_zoho_code(code: &Value) -> Option<&'static str> {
+    let code_str = match code {
+        Value::Number(n) => n.as_str(),
+        Value::String(s) => s.as_str(),
+        _ => return None,
+    };
+    match code_str {
+        // 108004 fires when the account being matched differs from the
+        // transaction's own bank/credit-card account. The common trigger is
+        // categorizing a credit-card-account transaction as an expense without
+        // telling Zoho the money came from the card.
+        "108004" => Some(
+            "The account being matched differs from the bank/credit-card account the transaction belongs to. \
+             When categorizing a credit-card-account transaction as an expense, add \
+             \"paid_through_account_id\":\"<card_account_id>\" (the card account) to the body. \
+             If Zoho still rejects it, create the expense with that paid_through_account_id and then run \
+             'bank-transactions match'. For 'bank-transactions match', pass --query account_id=<the transaction's own account>.",
+        ),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -587,6 +617,51 @@ mod tests {
         let mut client = make_client(test_cfg(None), &server.url());
         let err = client.get("/contacts", &Query::new()).unwrap_err();
         assert_eq!(err.code(), "api_error");
+    }
+
+    // Zoho 108004 surfaces on categorize/match POSTs when the funding account
+    // differs from the transaction's own account (e.g. categorizing a
+    // credit-card-account transaction as an expense without paid_through_account_id).
+    // parse_json_response is method-agnostic, so a GET fixture exercises the same path.
+    #[test]
+    fn api_error_108004_attaches_actionable_hint() {
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/books/v3/contacts")
+            .match_query(mockito::Matcher::Any)
+            .with_status(400)
+            .with_body(
+                r#"{"code":108004,"message":"Transactions cannot be matched as the account you are trying to match it to, is different."}"#,
+            )
+            .create();
+        let mut client = make_client(test_cfg(None), &server.url());
+        let err = client.get("/contacts", &Query::new()).unwrap_err();
+        assert_eq!(err.code(), "api_error");
+        let hint = err.details.as_ref().unwrap()["hint"]
+            .as_str()
+            .expect("108004 error should carry a hint string");
+        assert!(
+            hint.contains("paid_through_account_id"),
+            "hint should name the field that fixes it, got: {hint}"
+        );
+    }
+
+    #[test]
+    fn api_error_other_code_has_no_hint() {
+        let mut server = mockito::Server::new();
+        let _m = server
+            .mock("GET", "/books/v3/contacts")
+            .match_query(mockito::Matcher::Any)
+            .with_status(400)
+            .with_body(r#"{"code":99,"message":"Some unrelated error."}"#)
+            .create();
+        let mut client = make_client(test_cfg(None), &server.url());
+        let err = client.get("/contacts", &Query::new()).unwrap_err();
+        assert_eq!(err.code(), "api_error");
+        assert!(
+            err.details.as_ref().unwrap()["hint"].is_null(),
+            "only known codes should carry a hint"
+        );
     }
 
     #[test]
