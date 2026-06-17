@@ -150,10 +150,13 @@ zb expenses delete EXP1
 
 ```bash
 zb bank-transactions categorize expense <txn_id> --body '{"account_id":"..."}'
+zb bank-transactions categorize generic <txn_id> --body '{"transaction_type":"other_income","from_account_id":"<source_account_id>","to_account_id":"<bank_account_id>","amount":250.00,"date":"2026-06-16"}'
 zb bank-transactions match <txn_id> --body '{"transactions_to_be_matched":[{"transaction_id":"..."}]}'
 ```
 
 For a credit-card-account transaction, include `"paid_through_account_id":"<card_account_id>"` in the categorize body (the card account it was paid from); otherwise Zoho returns `108004`. See [`SKILL.md`](skills/zoho-books/SKILL.md) for the full recipe and the create-then-match fallback.
+
+The `generic` categorize is double-entry: it needs `transaction_type` plus both `from_account_id` and `to_account_id` (not a single `account_id`), with `amount` and `date`. Use it for income, owner drawings, and transfers; expense / vendor payment / customer payment have their own categorize sub-commands. See [`SKILL.md`](skills/zoho-books/SKILL.md) for the `transaction_type` list and the from/to direction.
 
 ### Escape hatch — any endpoint
 
