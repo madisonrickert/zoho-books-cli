@@ -437,6 +437,61 @@ mod tests {
         assert_eq!(parsed["data"]["items"].as_array().unwrap().len(), 0);
     }
 
+    /// Regression for #6: wrapped `expenses list` / `invoices list` returned an
+    /// empty array while `raw GET` of the same endpoint returned rows. A
+    /// populated Zoho collection (under its live-verified envelope key —
+    /// `expenses` / `invoices`) must be lifted into `data.items` without
+    /// dropping rows, and the raw collection key must NOT leak to `data.<key>`.
+    /// IDs are synthetic 19-digit strings (public repo, no real records).
+    #[test]
+    fn emit_list_lifts_populated_expenses_and_invoices_to_items() {
+        let expenses = json!({
+            "code": 0,
+            "message": "success",
+            "expenses": [
+                {"expense_id": "1234567890123456789", "total": 100.00},
+                {"expense_id": "1234567890123456790", "total": 5.00},
+            ],
+            "page_context": {
+                "page": 1,
+                "per_page": 3,
+                "has_more_page": true,
+                "applied_filter": "Status.All",
+                "sort_column": "created_time",
+            },
+        });
+        let s = capture(|w| {
+            emit_list(&expenses, "expenses", OutputFormat::Json, w).map_err(io::Error::other)
+        });
+        let parsed: Value = serde_json::from_str(s.trim_end()).unwrap();
+        let items = parsed["data"]["items"].as_array().unwrap();
+        assert_eq!(items.len(), 2, "populated expenses must not be dropped");
+        assert_eq!(items[0]["expense_id"], "1234567890123456789");
+        assert_eq!(parsed["data"]["page_context"]["has_more_page"], true);
+        assert!(
+            parsed["data"].get("expenses").is_none(),
+            "rows must surface at data.items, never data.expenses"
+        );
+
+        let invoices = json!({
+            "code": 0,
+            "message": "success",
+            "invoices": [{"invoice_id": "9876543210987654321", "status": "draft"}],
+            "page_context": {"page": 1, "has_more_page": false},
+        });
+        let s = capture(|w| {
+            emit_list(&invoices, "invoices", OutputFormat::Json, w).map_err(io::Error::other)
+        });
+        let parsed: Value = serde_json::from_str(s.trim_end()).unwrap();
+        let items = parsed["data"]["items"].as_array().unwrap();
+        assert_eq!(items.len(), 1, "populated invoices must not be dropped");
+        assert_eq!(items[0]["invoice_id"], "9876543210987654321");
+        assert!(
+            parsed["data"].get("invoices").is_none(),
+            "rows must surface at data.items, never data.invoices"
+        );
+    }
+
     #[test]
     fn emit_object_strips_zoho_envelope_fields() {
         let resp = json!({
