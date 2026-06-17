@@ -182,6 +182,7 @@ zb invoices comments list|add|delete
 zb invoices documents get|download|delete   # `download` writes bytes via responseformat=pdf|html
 zb invoices attachments add|get|delete
 zb invoices templates list|apply
+zb invoices export <id...> -o out.pdf       # bulk-export several invoices into one combined PDF
 ```
 
 ### Recurring invoices

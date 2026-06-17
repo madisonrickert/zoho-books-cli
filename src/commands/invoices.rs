@@ -1,5 +1,8 @@
 //! `zb invoices` — CRUD + state + email + reminders + payments + credits +
-//! comments + documents + attachments + templates.
+//! comments + documents + attachments + templates + bulk PDF export.
+//!
+//! `export` wraps `GET /invoices/pdf?invoice_ids=ID1,ID2` (bulk-export), which
+//! returns one combined PDF binary — no JSON envelope key to verify.
 
 use std::fs;
 use std::path::PathBuf;
@@ -50,6 +53,8 @@ pub enum Sub {
     Documents(DocumentsCmd),
     Templates(TemplatesCmd),
     Attachments(AttachmentsCmd),
+    /// Bulk-export multiple invoices into a single combined PDF.
+    Export(ExportArgs),
 }
 
 #[derive(Args, Debug)]
@@ -233,6 +238,16 @@ pub struct AttachmentsGetArgs {
     pub output: PathBuf,
 }
 
+#[derive(Args, Debug)]
+pub struct ExportArgs {
+    /// Invoice IDs to combine into a single PDF (at least one).
+    #[arg(required = true)]
+    pub invoice_ids: Vec<String>,
+    /// Destination path for the combined PDF.
+    #[arg(short = 'o', long)]
+    pub output: PathBuf,
+}
+
 pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
     match cmd.sub {
         Sub::List(args) => common::list(ctx, BASE, &args, "invoices"),
@@ -367,6 +382,7 @@ pub fn run(cmd: Cmd, ctx: &mut Ctx) -> Result<()> {
                 )
             }
         },
+        Sub::Export(args) => export_pdf(args, ctx),
     }
 }
 
@@ -397,6 +413,26 @@ fn download_document(args: DocumentDownloadArgs, ctx: &mut Ctx) -> Result<()> {
             "invoice_id": args.invoice_id,
             "document_id": args.document_id,
             "format": args.format,
+            "saved_to": args.output.display().to_string(),
+            "size_bytes": bytes.len(),
+            "content_type": content_type,
+        }),
+        ctx,
+    )
+}
+
+fn export_pdf(args: ExportArgs, ctx: &mut Ctx) -> Result<()> {
+    let mut q = Query::new();
+    q.insert("invoice_ids".into(), args.invoice_ids.join(","));
+    let (bytes, content_type) = ctx.client.get_bytes(&format!("{BASE}/pdf"), &q)?;
+    if let Some(parent) = args.output.parent() {
+        fs::create_dir_all(parent).map_err(ZohoError::from)?;
+    }
+    fs::write(&args.output, &bytes).map_err(ZohoError::from)?;
+    common::emit_success_raw(
+        &json!({
+            "invoice_ids": args.invoice_ids,
+            "count": args.invoice_ids.len(),
             "saved_to": args.output.display().to_string(),
             "size_bytes": bytes.len(),
             "content_type": content_type,
@@ -474,6 +510,100 @@ fn attachments_get(args: AttachmentsGetArgs, ctx: &mut Ctx) -> Result<()> {
 mod tests {
     use super::*;
     use crate::cli::Ctx;
+
+    #[test]
+    fn export_targets_invoices_pdf() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let mut server = mockito::Server::new();
+        let m = server
+            .mock("GET", "/books/v3/invoices/pdf")
+            .match_query(mockito::Matcher::UrlEncoded(
+                "invoice_ids".into(),
+                "123,456".into(),
+            ))
+            .with_status(200)
+            .with_header("content-type", "application/pdf")
+            .with_body(b"%PDF-1.4\ncombined")
+            .create();
+
+        let tmp = TempDir::new().unwrap();
+        let out = tmp.path().join("invoices.pdf");
+        let mut ctx = Ctx::new_for_test(&server.url());
+        run(
+            Cmd {
+                sub: Sub::Export(ExportArgs {
+                    invoice_ids: vec!["123".into(), "456".into()],
+                    output: out.clone(),
+                }),
+            },
+            &mut ctx,
+        )
+        .unwrap();
+        m.assert();
+        assert_eq!(fs::read(&out).unwrap(), b"%PDF-1.4\ncombined");
+    }
+
+    #[test]
+    fn export_dry_run_short_circuits_before_send() {
+        use crate::errors::ErrorKind;
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().unwrap();
+        let out = tmp.path().join("invoices.pdf");
+        // Unreachable URL: any real HTTP send errors with a connection error, so
+        // the only way this returns DryRunOk is the pre-send short-circuit.
+        let mut ctx = Ctx::new_for_test_dry_run("http://127.0.0.1:1");
+        let err = export_pdf(
+            ExportArgs {
+                invoice_ids: vec!["123".into()],
+                output: out.clone(),
+            },
+            &mut ctx,
+        )
+        .expect_err("dry-run must short-circuit before any HTTP send");
+        assert!(
+            matches!(err.kind, ErrorKind::DryRunOk),
+            "expected DryRunOk, got {:?}",
+            err.kind
+        );
+        assert!(!out.exists(), "dry-run must not write the output file");
+    }
+
+    #[test]
+    fn export_404_writes_no_file_and_no_parent_dir() {
+        use tempfile::TempDir;
+
+        let mut server = mockito::Server::new();
+        let m = server
+            .mock("GET", "/books/v3/invoices/pdf")
+            .match_query(mockito::Matcher::Any)
+            .with_status(404)
+            .with_body(r#"{"code":4,"message":"not found"}"#)
+            .create();
+
+        let tmp = TempDir::new().unwrap();
+        // Nested path: the parent dir does not exist yet. On failure the handler
+        // must error out of get_bytes before create_dir_all/write run.
+        let parent = tmp.path().join("nested");
+        let out = parent.join("invoices.pdf");
+        let mut ctx = Ctx::new_for_test(&server.url());
+        export_pdf(
+            ExportArgs {
+                invoice_ids: vec!["123".into()],
+                output: out.clone(),
+            },
+            &mut ctx,
+        )
+        .expect_err("404 must propagate as an error");
+        m.assert();
+        assert!(!out.exists(), "no partial file on failure");
+        assert!(
+            !parent.exists(),
+            "parent dir must not be created on failure"
+        );
+    }
 
     #[test]
     fn list_targets_invoices() {
