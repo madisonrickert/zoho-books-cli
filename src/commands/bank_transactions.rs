@@ -1,5 +1,14 @@
 //! `zb bank-transactions` — CRUD + match/unmatch/exclude/restore/uncategorize
 //! + categorize sub-app + statements sub-app.
+//!
+//! Generic categorize body (verified against Zoho v3 docs): the manual
+//! `categorize generic` endpoint is double-entry and requires
+//! `transaction_type` + `from_account_id` + `to_account_id` + `amount` +
+//! `date`. `transaction_type` ∈ {deposit, refund (credit-card only),
+//! transfer_fund, card_payment, sales_without_invoices, expense_refund,
+//! owner_contribution, interest_income, other_income, owner_drawings,
+//! sales_return}. expense / vendor_payment / customer_payment are rejected
+//! here and route through the dedicated categorize sub-commands instead.
 
 use clap::{Args, Subcommand};
 
@@ -76,7 +85,30 @@ pub struct CategorizeCmd {
 
 #[derive(Subcommand, Debug)]
 pub enum CategorizeSub {
-    /// Manual categorization (POST .../categorize).
+    /// Manual ("generic") categorization (POST .../categorize).
+    ///
+    /// This posts a double-entry transaction, so the body needs BOTH accounts
+    /// plus the type, amount, and date. A single `account_id` is NOT a valid
+    /// field (that mistake yields "Invalid value passed for Transaction Type"
+    /// or "Account does not exist"):
+    ///
+    ///   --body '{"transaction_type":"other_income",
+    ///            "from_account_id":"<source_account_id>",
+    ///            "to_account_id":"<bank_account_id>",
+    ///            "amount":100.0,"date":"YYYY-MM-DD"}'
+    ///
+    /// `from_account_id` is where the money came from; `to_account_id` is where
+    /// it landed. For money arriving in the bank (deposit, interest_income,
+    /// other_income, owner_contribution, sales_without_invoices) the bank
+    /// account is `to_account_id`; for money leaving it (owner_drawings,
+    /// card_payment, transfer_fund) the bank account is `from_account_id`.
+    ///
+    /// transaction_type is one of: deposit, refund (credit-card accounts only),
+    /// transfer_fund, card_payment, sales_without_invoices, expense_refund,
+    /// owner_contribution, interest_income, other_income, owner_drawings,
+    /// sales_return. Categorizing as an expense, vendor payment, or customer
+    /// payment is NOT supported here: use `categorize expense`,
+    /// `categorize vendor-payment`, or `categorize customer-payment`.
     Generic(CategorizeArgs),
     /// POST .../categorize/expenses
     Expense(CategorizeArgs),

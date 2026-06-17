@@ -152,6 +152,7 @@ zb recurring-expenses history           # comments / activity
 zb bank-transactions list|get|create|update|delete
 zb bank-transactions match|matches|unmatch|exclude|restore|uncategorize
 zb bank-transactions categorize generic|expense|vendor-payment|customer-payment|payment-refund|vendor-payment-refund|credit-note-refund|vendor-credit-refund
+# `generic` is double-entry: body needs transaction_type + from_account_id + to_account_id + amount + date (see recipe below)
 zb bank-transactions statements import|last-imported|delete
 
 zb bank-rules list|get|create|update|delete   # /bankaccounts/rules; list requires account_id query param
@@ -292,6 +293,14 @@ zb raw <GET|POST|PUT|DELETE> <path> [--query k=v] [--body '<json>'|@file.json] [
    - **Credit-card-account transactions:** add `"paid_through_account_id":"<card_account_id>"` (the card account) to the body. Without it Zoho returns `108004` ("the account you are trying to match it to is different"), because the expense isn't funded from the card the transaction lives on.
    - If `108004` persists, use the validated two-step fallback: `zb expenses create --body '{"account_id":"...","paid_through_account_id":"<card_account_id>","amount":...,"date":"..."}'`, then `zb bank-transactions match <txn_id> --query account_id=<card_account_id> --body '{"transactions_to_be_matched":[{"transaction_id":"<expense_id>","transaction_type":"expense"}]}'`.
 3. Confirm via `zb bank-transactions get <txn_id>`.
+
+**Categorize an uncategorized transaction as income, owner drawings, or a transfer (generic):**
+The `generic` endpoint posts a double-entry transaction, so the body needs `transaction_type` plus BOTH `from_account_id` and `to_account_id` (a single `account_id` is rejected with "Invalid value passed for Transaction Type" or "Account does not exist"), with `amount` and `date`:
+1. `zb bank-transactions categorize generic <txn_id> --body '{"transaction_type":"other_income","from_account_id":"<income_account_id>","to_account_id":"<bank_account_id>","amount":250.00,"date":"2026-06-16"}'`
+   - `from_account_id` is the source of the money; `to_account_id` is where it landed. Money arriving in the bank means the bank account is `to_account_id`; money leaving means the bank account is `from_account_id`.
+   - `transaction_type` is one of: `deposit`, `refund` (credit-card accounts only), `transfer_fund`, `card_payment`, `sales_without_invoices`, `expense_refund`, `owner_contribution`, `interest_income`, `other_income`, `owner_drawings`, `sales_return`.
+   - Expense, vendor payment, and customer payment are NOT valid `transaction_type` values here. Use `categorize expense`, `categorize vendor-payment`, or `categorize customer-payment` (each has its own body shape) instead.
+2. Confirm via `zb bank-transactions get <txn_id>`.
 
 ## Discoverability
 
