@@ -163,6 +163,7 @@ The `generic` categorize is double-entry: it needs `transaction_type` plus both 
 ```bash
 zb raw GET /invoices --query "status=unpaid"
 zb raw POST /contacts --body '{"contact_name":"Acme"}'
+zb raw GET /documents/<id> -o receipt.pdf   # --output writes raw bytes (binary-safe); without it, binary is corrupted in the JSON envelope
 ```
 
 ## Command groups
@@ -180,11 +181,12 @@ Top-level groups:
 - `bank-transactions`, `bank-rules` — CRUD + match/categorize/exclude/restore + 8-target categorize verbs + statement import + rules CRUD
 - `bills` — CRUD + mark-void / mark-open / email + payments apply/unapply + comments + attachments add/get/delete
 - `invoices`, `recurring-invoices` — CRUD + state (mark-sent / mark-void / mark-draft / write-off / cancel-write-off) + email + reminders + credits apply/unapply + comments + documents get/download/delete + attachments + templates list/apply
+- `documents` — org-level Documents inbox: list / get / binary-safe download / delete (distinct from `invoices documents`)
 - `customer-payments` — CRUD + refunds CRUD
 - `projects` — CRUD + clone + state + invoices list + users / tasks / comments sub-apps
 - `contacts` — CRUD + search + state + comments + addresses sub-app + persons sub-app
 - `chart-of-accounts` — CRUD + state + transactions list / delete
-- `raw` — escape hatch to any Zoho v3 endpoint
+- `raw` — escape hatch to any Zoho v3 endpoint (add `--output <file>` on a GET to save raw response bytes, binary-safe)
 
 The full per-command list with arguments and help text comes from `zb --list-commands`. The agent-user contract — output shapes, error codes, idempotency notes, end-to-end flows — lives in [`skills/zoho-books/SKILL.md`](skills/zoho-books/SKILL.md).
 

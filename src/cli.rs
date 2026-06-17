@@ -71,6 +71,8 @@ pub enum Commands {
     Contacts(commands::contacts::Cmd),
     /// Expenses: CRUD, receipts, attachments, comments
     Expenses(commands::expenses::Cmd),
+    /// Documents inbox: list, get, binary-safe download, delete (org-level uploads)
+    Documents(commands::documents::Cmd),
     /// Invoices: CRUD, status, payments, credits, comments, documents, attachments, templates
     Invoices(commands::invoices::Cmd),
     /// Bills: CRUD, payments, attachments, status, email
@@ -221,6 +223,7 @@ pub fn run(cli: Cli) -> Result<()> {
         Commands::Raw(c) => commands::raw::run(c, &mut ctx),
         Commands::Contacts(c) => commands::contacts::run(c, &mut ctx),
         Commands::Expenses(c) => commands::expenses::run(c, &mut ctx),
+        Commands::Documents(c) => commands::documents::run(c, &mut ctx),
         Commands::Invoices(c) => commands::invoices::run(c, &mut ctx),
         Commands::Bills(c) => commands::bills::run(c, &mut ctx),
         Commands::Projects(c) => commands::projects::run(c, &mut ctx),

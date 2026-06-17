@@ -13,6 +13,7 @@ pub mod chart_of_accounts;
 pub mod common;
 pub mod contacts;
 pub mod customer_payments;
+pub mod documents;
 pub mod expenses;
 pub mod invoices;
 pub mod org;
