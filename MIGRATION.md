@@ -2,8 +2,8 @@
 
 `zoho-books-cli` v1.0.0 is a full Rust rewrite. The binary name (`zb`), the
 command tree, the JSON envelope shapes, the stored credentials, the OAuth
-loopback port, the file-fallback path, and the keyring slot are all unchanged
-— so for most users this is a one-line install swap with no re-authentication.
+loopback port, the file-fallback path, and the keyring slot are all unchanged,
+so for most users this is a one-line install swap with no re-authentication.
 
 Per-call cold-start latency drops ~30× (117 ms → 4 ms) and memory footprint
 drops ~5× (38 MB → 7.5 MB). See [`bench/cli-latency/RESULTS.md`](bench/cli-latency/RESULTS.md)
@@ -12,7 +12,7 @@ for the full benchmark table.
 ## Transition
 
 ```bash
-# 1. Uninstall the Python version. Leaves credentials in place — they live in
+# 1. Uninstall the Python version. Leaves credentials in place; they live in
 #    the OS keyring and ~/.config/zoho-books-cli/credentials.json, both untouched
 #    by uv tool uninstall.
 uv tool uninstall zoho-books-cli
@@ -27,7 +27,7 @@ which zb         # should point to /opt/homebrew/bin/zb or ~/.cargo/bin/zb,
                  # NOT ~/.local/bin/zb
 zb --version     # should print {"ok":true,"data":{"version":"1.0.0"}}
 
-# 4. Verify existing credentials still work — this is the drop-in proof.
+# 4. Verify existing credentials still work. This is the drop-in proof.
 zb auth status   # should report "authenticated":true without prompting for re-auth
 zb org list      # should succeed against your existing org
 ```
@@ -62,7 +62,7 @@ zb org list      # should succeed against your existing org
 - **Install path.** Binary now ships as a single self-contained executable
   rather than a Python venv. ~3.3 MB on disk vs ~16 MB for the uv-tool tree.
 - **Build dependency.** No longer needs Python on the user's machine. Building
-  from source now needs a Rust toolchain (1.85+) instead of `uv` + Python 3.11+.
+  from source now needs a Rust toolchain (1.88+) instead of `uv` + Python 3.11+.
   Pre-built binaries via `brew install` or GitHub Releases require nothing.
 - **Error trace on internal panics.** Rust's panic handler emits the
   `{"ok": false, "error": {"code": "unknown", ...}}` envelope rather than a
@@ -72,7 +72,7 @@ zb org list      # should succeed against your existing org
 
 ## What `uv tool upgrade` does now
 
-`uv tool upgrade zoho-books-cli` (or a fresh `uv tool install git+https://github.com/madisonrickert/zoho-books-cli` against the default branch) installs a **deprecation shim** — version 0.6.0, no dependencies, no real CLI. Running `zb` after that prints:
+`uv tool upgrade zoho-books-cli` (or a fresh `uv tool install git+https://github.com/madisonrickert/zoho-books-cli` against the default branch) installs a **deprecation shim** (version 0.6.0, no dependencies, no real CLI). Running `zb` after that prints:
 
 ```json
 {"ok":false,"error":{"code":"deprecated_install","message":"zoho-books-cli has moved from Python to a single Rust binary as of v1.0.0...","details":{"install_commands":{"homebrew":"brew install madisonrickert/tap/zoho-books-cli","cargo":"cargo install --git https://github.com/madisonrickert/zoho-books-cli","github_releases":"..."},...}}}
@@ -136,7 +136,7 @@ brew uninstall madisonrickert/tap/zoho-books-cli
 uv tool install 'git+https://github.com/madisonrickert/zoho-books-cli@v0.5.0'
 ```
 
-Credentials persist across the round-trip — no data loss possible. The Python
+Credentials persist across the round-trip, so no data loss is possible. The Python
 0.5.0 tag remains accessible on GitHub indefinitely.
 
 ### Re-authenticating from scratch

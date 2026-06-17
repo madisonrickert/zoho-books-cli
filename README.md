@@ -4,17 +4,17 @@
 
 [![CI](https://github.com/madisonrickert/zoho-books-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/madisonrickert/zoho-books-cli/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Rust](https://img.shields.io/badge/rust-1.85%2B-blue.svg)](https://www.rust-lang.org)
+[![Rust](https://img.shields.io/badge/rust-1.88%2B-blue.svg)](https://www.rust-lang.org)
 
-> **Upgrading from a Python 0.5.x install?** See [`MIGRATION.md`](MIGRATION.md). The binary name (`zb`), command surface, JSON envelopes, and stored credentials are unchanged — the migration is one `uv tool uninstall` + one `brew install`.
+> **Upgrading from a Python 0.5.x install?** See [`MIGRATION.md`](MIGRATION.md). The binary name (`zb`), command surface, JSON envelopes, and stored credentials are unchanged, so the migration is one `uv tool uninstall` plus one `brew install`.
 
-Designed for AI agents and shell-scripted automation — Claude, ChatGPT, cron jobs, anything that can invoke a binary. Pair it with the [Zoho MCP server](https://mcp.zoho.com) for AI conveniences (full-text search, suggestions); reach for `zb` whenever:
+Designed for AI agents and shell-scripted automation: Claude, ChatGPT, cron jobs, anything that can invoke a binary. Pair it with the [Zoho MCP server](https://mcp.zoho.com) for AI conveniences (full-text search, suggestions); reach for `zb` whenever:
 
 - **You're moving binary files.** Upload or download receipts, bill / invoice attachments, bank-statement imports, and document PDFs directly. MCP's JSON-RPC transport can't carry file bodies; `zb` does native multipart with client-side validation.
 - **Response IDs flow into JavaScript.** Zoho's 19-digit IDs exceed `Number.MAX_SAFE_INTEGER`. `zb` keeps every ID as a string end-to-end so JS consumers don't silently corrupt them.
-- **You need first-class verbs for state and two-step workflows.** `mark-sent` / `mark-void` / `write-off` on invoices; `mark-void` / `mark-open` / `email` on bills; `apply` / `unapply` for credits and bill payments; `stop` / `resume` on recurring records; `match` / `categorize` / `exclude` / `restore` on bank transactions; `add` / `invite` / `update` for project users; addresses and contact persons; bank account rules. (Coverage is broad but not exhaustive — see "Not yet wrapped" below for what still routes through `zb raw`.)
+- **You need first-class verbs for state and two-step workflows.** `mark-sent` / `mark-void` / `write-off` on invoices; `mark-void` / `mark-open` / `email` on bills; `apply` / `unapply` for credits and bill payments; `stop` / `resume` on recurring records; `match` / `categorize` / `exclude` / `restore` on bank transactions; `add` / `invite` / `update` for project users; addresses and contact persons; bank account rules. (Coverage is broad but not exhaustive; see "Not yet wrapped" below for what still routes through `zb raw`.)
 - **You want pipelines, not prose.** One-line JSON by default, stable exit codes, opt-in CSV / YAML / NDJSON streaming (`--page-all`), `--dry-run` previews, `--params '{JSON}'` for agent-friendly query construction.
-- **You want a slim per-turn token footprint.** Against the same Zoho MCP catalog served through a modern MCP client with tool discovery enabled (Claude Code's Tool Search, the current default), `zb`'s **total surface tax** — the catalog + skill bytes the agent carries every turn — came in ~28% slimmer in our snapshot. Both surfaces are tunable; audit the methodology and re-run against your own configuration in [`bench/`](bench/).
+- **You want a slim per-turn token footprint.** Against the same Zoho MCP catalog served through a modern MCP client with tool discovery enabled (Claude Code's Tool Search, the current default), `zb`'s **total surface tax** (the catalog plus skill bytes the agent carries every turn) came in ~28% slimmer in our snapshot. Both surfaces are tunable; audit the methodology and re-run against your own configuration in [`bench/`](bench/).
 
 Anything not yet wrapped is reachable via `zb raw <METHOD> <path>`, so the CLI never blocks an agent mid-workflow.
 
@@ -28,7 +28,10 @@ zb invoices email 9820000009999001000 --query send_attachment=true
 # apply a credit-note to an invoice
 zb invoices credits apply 9820000009999001000 --body '{"apply_creditnotes":[{"creditnote_id":"9820000001234001000","amount_applied":100}]}'
 
-# preview a destructive call without sending it — no network, no token refresh
+# download a receipt from the org documents inbox, binary-safe, straight to disk
+zb documents download 9820000007457007 -o ~/Downloads/receipt.pdf
+
+# preview a destructive call without sending it (no network, no token refresh)
 zb --dry-run customer-payments update 9820000005670010000 --body '{"amount":100,"reference_number":"check-1234"}'
 ```
 
@@ -130,13 +133,13 @@ zb expenses list --query status=unfiled --page 1 --per-page 50
 zb bank-transactions list --query account_id=9820000005670010000 --per-page 25
 ```
 
-Every list command is single-page by default and exposes Zoho's `page_context`. Loop on `page_context.has_more_page` if you need more rows — or pass `--page-all` to have the CLI stream pages as NDJSON (one page per line), bounded by `--page-limit` (default 10) and `--page-delay` (default 100ms between requests).
+Every list command is single-page by default and exposes Zoho's `page_context`. Loop on `page_context.has_more_page` if you need more rows, or pass `--page-all` to have the CLI stream pages as NDJSON (one page per line), bounded by `--page-limit` (default 10) and `--page-delay` (default 100ms between requests).
 
-Prefer `--params '{"account_id": "...", "per_page": 50}'` over repeated `--query k=v` when scripting — it's a single JSON object and easier for agents to assemble.
+Prefer `--params '{"account_id": "...", "per_page": 50}'` over repeated `--query k=v` when scripting: it's a single JSON object and easier for agents to assemble.
 
 ### Create, update, delete
 
-Thin wrappers — pass the body as inline JSON or `@file.json`:
+Thin wrappers. Pass the body as inline JSON or `@file.json`:
 
 ```bash
 zb expenses create --body '{"account_id":"9820000005670010000","date":"2026-04-15","amount":42.50}'
@@ -158,7 +161,24 @@ For a credit-card-account transaction, include `"paid_through_account_id":"<card
 
 The `generic` categorize is double-entry: it needs `transaction_type` plus both `from_account_id` and `to_account_id` (not a single `account_id`), with `amount` and `date`. Use it for income, owner drawings, and transfers; expense / vendor payment / customer payment have their own categorize sub-commands. See [`SKILL.md`](skills/zoho-books/SKILL.md) for the `transaction_type` list and the from/to direction.
 
-### Escape hatch — any endpoint
+### Download from the documents inbox
+
+```bash
+zb documents list --per-page 25                          # receipts/files uploaded via the web UI or autoscan
+zb documents download 9820000007457007 -o receipt.pdf    # original bytes, binary-safe
+```
+
+The org-level documents inbox is separate from `invoices documents` (files attached to one invoice). `download` streams the original file straight to disk. `get <id>` returns one document's metadata by scanning the listing, since Zoho exposes no single-object metadata endpoint.
+
+### Export invoices as PDF
+
+```bash
+zb invoices export 9820000009999001000 9820000009999002000 -o invoices.pdf
+```
+
+Combines one or more invoices into a single PDF on disk.
+
+### Escape hatch: any endpoint
 
 ```bash
 zb raw GET /invoices --query "status=unpaid"
@@ -169,26 +189,26 @@ zb raw GET /documents/<id> -o receipt.pdf   # --output writes raw bytes (binary-
 ## Command groups
 
 ```bash
-zb --list-commands       # authoritative tree as JSON — always current
+zb --list-commands       # authoritative tree as JSON, always current
 zb <group> --help        # per-group help
 ```
 
 Top-level groups:
 
-- `auth` — login / status / refresh / logout
-- `org` — list / use / current / get / update
-- `expenses`, `recurring-expenses` — CRUD + receipts + attachments + comments + stop/resume
-- `bank-transactions`, `bank-rules` — CRUD + match/categorize/exclude/restore + 8-target categorize verbs + statement import + rules CRUD
-- `bills` — CRUD + mark-void / mark-open / email + payments apply/unapply + comments + attachments add/get/delete
-- `invoices`, `recurring-invoices` — CRUD + state (mark-sent / mark-void / mark-draft / write-off / cancel-write-off) + email + reminders + credits apply/unapply + comments + documents get/download/delete + attachments + templates list/apply
-- `documents` — org-level Documents inbox: list / get / binary-safe download / delete (distinct from `invoices documents`)
-- `customer-payments` — CRUD + refunds CRUD
-- `projects` — CRUD + clone + state + invoices list + users / tasks / comments sub-apps
-- `contacts` — CRUD + search + state + comments + addresses sub-app + persons sub-app
-- `chart-of-accounts` — CRUD + state + transactions list / delete
-- `raw` — escape hatch to any Zoho v3 endpoint (add `--output <file>` on a GET to save raw response bytes, binary-safe)
+- `auth`: login / status / refresh / logout
+- `org`: list / use / current / get / update
+- `expenses`, `recurring-expenses`: CRUD + receipts + attachments + comments + stop/resume
+- `bank-transactions`, `bank-rules`: CRUD + match/categorize/exclude/restore + 8-target categorize verbs + statement import + rules CRUD
+- `bills`: CRUD + mark-void / mark-open / email + payments apply/unapply + comments + attachments add/get/delete
+- `invoices`, `recurring-invoices`: CRUD + state (mark-sent / mark-void / mark-draft / write-off / cancel-write-off) + email + reminders + credits apply/unapply + comments + documents get/download/delete + attachments + templates list/apply + bulk PDF export
+- `documents`: org-level Documents inbox (list / get / binary-safe download / delete), distinct from `invoices documents`
+- `customer-payments`: CRUD + refunds CRUD
+- `projects`: CRUD + clone + state + invoices list + users / tasks / comments sub-apps
+- `contacts`: CRUD + search + state + comments + addresses sub-app + persons sub-app
+- `chart-of-accounts`: CRUD + state + transactions list / delete
+- `raw`: escape hatch to any Zoho v3 endpoint (add `--output <file>` on a GET to save raw response bytes, binary-safe)
 
-The full per-command list with arguments and help text comes from `zb --list-commands`. The agent-user contract — output shapes, error codes, idempotency notes, end-to-end flows — lives in [`skills/zoho-books/SKILL.md`](skills/zoho-books/SKILL.md).
+The full per-command list with arguments and help text comes from `zb --list-commands`. The agent-user contract (output shapes, error codes, idempotency notes, end-to-end flows) lives in [`skills/zoho-books/SKILL.md`](skills/zoho-books/SKILL.md).
 
 ## Output contract
 
@@ -197,7 +217,7 @@ All commands print a single JSON object:
 - **Success** → stdout: `{"ok": true, "data": {...}}`
 - **Error** → stderr: `{"ok": false, "error": {"code": "...", "message": "...", "details": {...}}}`
 
-Pass `--format json|yaml|table|csv` to switch serializers (`json` is default; `--pretty` is a legacy alias for `--format table`). Pass `--dry-run` to print the request that would be sent — method, url, query, body, headers, files — without calling Zoho. Useful for previewing destructive calls.
+Pass `--format json|yaml|table|csv` to switch serializers (`json` is default; `--pretty` is a legacy alias for `--format table`). Pass `--dry-run` to print the request that would be sent (method, url, query, body, headers, files) without calling Zoho. Useful for previewing destructive calls.
 
 Exit codes:
 
@@ -217,7 +237,7 @@ The repo ships a Claude Code skill at [`skills/zoho-books/SKILL.md`](skills/zoho
 
 ### Install the skill
 
-Symlink (follows repo updates — recommended if you cloned for dev):
+Symlink (follows repo updates, recommended if you cloned for dev):
 
 ```bash
 mkdir -p ~/.claude/skills

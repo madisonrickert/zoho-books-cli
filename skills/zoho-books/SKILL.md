@@ -1,9 +1,9 @@
 ---
 name: zoho-books
-description: Zoho Books CLI for expenses, invoices, bills, bank transactions, contacts, projects, and payments — CRUD plus categorize/match, email, refunds, credits, and receipt attach/download. Triggers on Zoho Books operations or any Zoho Books record ID.
+description: Zoho Books CLI for expenses, invoices, bills, bank transactions, contacts, projects, and payments. CRUD plus categorize/match, email, refunds, credits, and receipt attach/download. Triggers on Zoho Books operations or any Zoho Books record ID.
 ---
 
-# Zoho Books CLI (`zb`) — agent usage
+# Zoho Books CLI (`zb`): agent usage
 
 A thin command-line wrapper over the Zoho Books v3 REST API designed for agents:
 - Outputs a single JSON object on stdout (`{"ok": true, "data": ...}`).
@@ -47,7 +47,7 @@ Zoho Books IDs are 19 digits. JavaScript's `Number` type starts losing precision
 # Correct
 zb expenses create --body '{"account_id":"9820000005670010000","amount":42.50}'
 
-# Dangerous — a JS consumer of the response will silently corrupt the ID
+# Dangerous: a JS consumer of the response will silently corrupt the ID
 zb expenses create --body '{"account_id":9820000005670010000,"amount":42.50}'
 ```
 
@@ -60,22 +60,22 @@ Every wrapped command takes one or both of:
 - `--query key=value` (repeatable) and / or `--params '<JSON>'` (single JSON object) for URL query params. Both merge into the final query dict; `--params` wins on conflict.
 - `--body '<json>'` or `--body @path/to/file.json` for the request body. IDs in the body must be strings.
 
-`--page` and `--per-page` are first-class on every list. Opt-in `--page-all` (with `--page-limit` and `--page-delay`) auto-paginates and emits **NDJSON** — one JSON line per page.
+`--page` and `--per-page` are first-class on every list. Opt-in `--page-all` (with `--page-limit` and `--page-delay`) auto-paginates and emits **NDJSON**, one JSON line per page.
 
-**There are no typed per-field flags — for filters or for body fields.** If a flag isn't in `<cmd> --help`, it doesn't exist. List filters go through `--query` / `--params` using Zoho's documented param names; bodies are built as JSON.
+**There are no typed per-field flags, for either filters or body fields.** If a flag isn't in `<cmd> --help`, it doesn't exist. List filters go through `--query` / `--params` using Zoho's documented param names; bodies are built as JSON.
 
 ```bash
-# Wrong — these flags don't exist; Typer will reject the call
+# Wrong: these flags don't exist, so the CLI rejects the call
 zb expenses list --date-start 2022-08-10 --date-end 2022-08-15
 zb expenses list --status unbilled
 
-# Right — Zoho's documented query params, passed verbatim
+# Right: Zoho's documented query params, passed verbatim
 zb expenses list --query from_date=2022-08-10 --query to_date=2022-08-15
 zb expenses list --params '{"from_date":"2022-08-10","to_date":"2022-08-15"}'
 zb expenses list --query status=unbilled --query vendor_id=98200000056700100
 ```
 
-Filter param names come from Zoho's API reference for the underlying endpoint (`from_date`/`to_date`, `status`, `customer_id`, `vendor_id`, `search_text`, `filter_by`, ...) and vary by endpoint — bank-transactions statements use `from_date`/`to_date`, some other endpoints use `date_start`/`date_end`. **A mistyped or wrong-for-this-endpoint filter is silently ignored by Zoho** — the response looks fine but is unfiltered. If a filter doesn't seem to take, recheck the param name against Zoho's docs before assuming the data is correct.
+Filter param names come from Zoho's API reference for the underlying endpoint (`from_date`/`to_date`, `status`, `customer_id`, `vendor_id`, `search_text`, `filter_by`, ...) and vary by endpoint (bank-transactions statements use `from_date`/`to_date`, some other endpoints use `date_start`/`date_end`). **A mistyped or wrong-for-this-endpoint filter is silently ignored by Zoho**: the response looks fine but is unfiltered. If a filter doesn't seem to take, recheck the param name against Zoho's docs before assuming the data is correct.
 
 ## Output contract (parse this, not stdout text)
 
@@ -112,7 +112,7 @@ Stable `error.code` + exit codes:
 | `--format json` (default) | One-line JSON object. |
 | `--format yaml` | YAML. |
 | `--format table` | Rich table (humans). |
-| `--format csv` | CSV (list responses only — falls back to JSON otherwise). |
+| `--format csv` | CSV (list responses only; falls back to JSON otherwise). |
 | `--dry-run` | Print the request that *would* be sent (method, url, query, body, headers, files) as the success payload. **No network I/O, no token refresh.** Use to preview destructive calls. |
 
 ## Command tree (agent-relevant verbs)
@@ -277,9 +277,9 @@ zb raw <GET|POST|PUT|DELETE> <path> [--query k=v] [--body '<json>'|@file.json] [
 ## Idempotency notes
 
 - `receipt upload` replaces.
-- `attachments add` appends — calling twice with the same file creates two attachments.
+- `attachments add` appends: calling twice with the same file creates two attachments.
 - `attachments delete` and `receipt delete` are idempotent; deleting an already-deleted item returns `not_found`.
-- Status verbs (`mark-active`, `mark-inactive`, `mark-sent`, `mark-void`, `stop`, `resume`, etc.) are server-validated for eligibility — you can call them on a record already in the target state without harm, but the response message will reflect Zoho's view.
+- Status verbs (`mark-active`, `mark-inactive`, `mark-sent`, `mark-void`, `stop`, `resume`, etc.) are server-validated for eligibility. You can call them on a record already in the target state without harm, but the response message will reflect Zoho's view.
 - `bills payments delete` and `invoices credits delete` only **unapply** an application row; the underlying payment / credit-note record is untouched and re-applicable elsewhere.
 
 ## Typical agent flows
@@ -290,7 +290,7 @@ zb raw <GET|POST|PUT|DELETE> <path> [--query k=v] [--body '<json>'|@file.json] [
 3. Parse response: on `ok:true`, confirm `data.uploaded` (filename) and `data.size_bytes`. On `error.code=not_found`, offer to list recent expenses to find the right ID.
 
 **Email an invoice:**
-1. `zb invoices email <invoice_id>` — empty body sends Zoho's default to the saved-on-record recipients.
+1. `zb invoices email <invoice_id>`: empty body sends Zoho's default to the saved-on-record recipients.
 2. To override recipients/subject: `--body '{"to_mail_ids":["a@b.com"],"subject":"...","body":"<p>…</p>"}'`.
 3. To attach the PDF: `--query send_attachment=true`.
 4. For dunning / overdue reminders that pick up the org's payment-reminder template, use `zb invoices reminders send` instead.

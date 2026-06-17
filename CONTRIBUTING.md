@@ -2,7 +2,7 @@
 
 ## Dev setup
 
-Requires a Rust toolchain (1.85+). Install via [rustup](https://rustup.rs) if you don't have one:
+Requires a Rust toolchain (1.88+). Install via [rustup](https://rustup.rs) if you don't have one:
 
 ```bash
 brew install rustup
