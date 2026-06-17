@@ -1,6 +1,6 @@
 [package]
 name = "zoho-books-cli"
-version = "1.0.2"
+version = "1.1.0"
 edition = "2024"
 rust-version = "1.88"
 description = "Agent-first CLI for Zoho Books, filling gaps the official MCP can't cover (notably binary file uploads)."
