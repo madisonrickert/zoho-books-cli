@@ -185,6 +185,17 @@ zb invoices templates list|apply
 zb invoices export <id...> -o out.pdf       # bulk-export several invoices into one combined PDF
 ```
 
+### Documents inbox (org-level)
+
+```bash
+zb documents list                                  # GET /documents (receipts/files uploaded via web UI or autoscan)
+zb documents get <document_id>                     # metadata, looked up within the listing
+zb documents download <document_id> -o file.pdf    # writes the original file bytes (binary-safe)
+zb documents delete <document_id>
+```
+
+This is the standalone Documents module, distinct from `invoices documents` (which manages files attached to one invoice). `GET /documents/{id}` returns the raw file bytes, so `download` streams them straight to `--output`. There is no JSON metadata single-get endpoint, so `get` scans the listing (from `--page`, up to `--page-limit` pages) and returns the matching row; narrow a large inbox with `--per-page` or `--query filter_by=...`.
+
 ### Recurring invoices
 
 ```bash
@@ -233,8 +244,10 @@ zb chart-of-accounts transactions list|delete
 ### Escape hatch
 
 ```bash
-zb raw <GET|POST|PUT|DELETE> <path> [--query k=v] [--body '<json>'|@file.json] [--file field=path]
+zb raw <GET|POST|PUT|DELETE> <path> [--query k=v] [--body '<json>'|@file.json] [--file field=path] [--output file]
 ```
+
+`--output <file>` (GET only) writes the raw response bytes to a file instead of wrapping them in the JSON envelope, so binary endpoints download without corruption (e.g. `zb raw GET /documents/<id> -o receipt.pdf`). Without it, a binary body is stringified into `data.response` and corrupted.
 
 ### File constraints (validated client-side)
 
